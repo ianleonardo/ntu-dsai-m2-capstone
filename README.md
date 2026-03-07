@@ -1,1 +1,1 @@
-# ntu-dsai-m2-capstone
+# NTU DSAI Capstone Project (Module 2: Data Engineering)
