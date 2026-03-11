@@ -56,3 +56,56 @@ meltano run tap-csv target-jsonl
 
 ### Alternative: Building a Custom Singer Tap
 If you prefer a fully integrated Meltano solution without external scripts, you can build a custom Singer tap using the Meltano Singer SDK (`pip install singer-sdk`). You would implement the download and unzip logic directly inside the tap's `get_records()` method, yielding the parsed TSV rows directly to Meltano. However, the above script + `tap-csv` approach is typically much faster to set up.
+
+---
+
+## Alternative Target: Google BigQuery
+
+If your final destination is Google BigQuery instead of local JSON files, you can swap out `target-jsonl` for `target-bigquery`.
+
+### 1. Install `target-bigquery`
+
+Add the BigQuery target to your Meltano project:
+
+```bash
+cd meltano-ingestion
+meltano add target-bigquery
+```
+
+### 2. Configure `target-bigquery`
+
+Configure the connection settings inside your `meltano.yml` under `loaders`:
+
+```yaml
+  loaders:
+  # ... current loaders like target-jsonl
+  - name: target-bigquery
+    variant: z3n-solutions # standard variant
+    config:
+      project_id: your-gcp-project-id
+      dataset_id: sec_data_dataset
+      location: US # or another region
+```
+
+### 3. Provide Service Account Credentials
+
+`target-bigquery` needs permissions to write to BigQuery. Create a service account in GCP with **BigQuery Data Editor** and **BigQuery Job User** roles, download the JSON key, and add the path to your Meltano project's `.env` file (or your main `.env`):
+
+```env
+# Inside .env
+TARGET_BIGQUERY_CREDENTIALS_PATH=/absolute/path/to/your/gcp-service-account-key.json
+```
+*(Note: Some target variants use `GOOGLE_APPLICATION_CREDENTIALS`, but configuring via `TARGET_BIGQUERY_CREDENTIALS_PATH` is the standard Meltano approach).*
+
+### 4. Run the Pipeline
+
+Finally, run the ingestion specifying the new BigQuery target:
+
+```bash
+# 1. Download and extract the 2025 SEC data (if you haven't yet)
+python scripts/download_sec.py
+
+# 2. Extract your CSV/TSV, and pipe to BigQuery!
+meltano run tap-csv target-bigquery
+```
+Meltano will automatically create tables in your BigQuery dataset (e.g. `sec_data_dataset.sec_submissions`) based on the streams defined in `tap-csv` and load the data.
