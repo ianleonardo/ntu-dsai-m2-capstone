@@ -59,5 +59,5 @@ meltano run tap-csv target-bigquery
 
 ### Next Steps / Future Work
 - Implement data transformations (dbt) within BigQuery to create star-schema data marts.
-- Develop a Streamlit web application to visualize the stock analytics and insider trading signals.
+- Develop a web application to visualize the stock analytics and insider trading signals.
 - Automate technical analysis (e.g., Simple Moving Averages, Support & Resistance levels) utilizing AI/LLM tools.
