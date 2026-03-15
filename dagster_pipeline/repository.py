@@ -21,10 +21,9 @@ from dagster_pipeline.assets.meltano_integration import (
 
 # Import jobs
 from dagster_pipeline.jobs.sec_pipeline import (
-    SEC_PIPELINE_JOB,
-    SEC_DOWNLOAD_JOB,
-    SEC_BIGQUERY_LOAD_JOB,
-    SEC_BACKFILL_JOB,
+    sec_pipeline_job,
+    sec_download_job,
+    sec_bigquery_load_job,
 )
 
 # Import schedules
@@ -55,10 +54,9 @@ def sec_data_repository():
         sec_pipeline_summary,
         
         # Jobs
-        SEC_PIPELINE_JOB,
-        SEC_DOWNLOAD_JOB,
-        SEC_BIGQUERY_LOAD_JOB,
-        SEC_BACKFILL_JOB,
+        sec_pipeline_job,
+        sec_download_job,
+        sec_bigquery_load_job,
         
         # Schedules
         quarterly_sec_schedule,

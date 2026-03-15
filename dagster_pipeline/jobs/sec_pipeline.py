@@ -2,7 +2,7 @@
 Dagster jobs for SEC data pipeline orchestration.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from dagster import (
     AssetSelection,
@@ -25,135 +25,62 @@ from dagster_pipeline.assets.meltano_integration import (
 )
 
 
-@job(
+@graph(
     description="Complete SEC data pipeline: Download -> GCS -> BigQuery",
 )
-def sec_pipeline_job():
+def sec_pipeline_graph(year: int, quarters: List[str], bucket_name: Optional[str] = None, keep_local: Optional[bool] = None):
     """
-    Complete SEC data pipeline job that orchestrates all assets.
+    Complete SEC data pipeline graph that orchestrates all assets.
     
-    This job runs the full pipeline:
+    This graph runs the full pipeline:
     1. Download SEC data for specified year/quarters
     2. Upload to Google Cloud Storage
     3. Stage for Meltano
     4. Load to BigQuery
     5. Generate execution summary
     """
-    sec_pipeline_summary()
+    # Create dependency chain: download -> gcs -> staging -> bigquery -> summary
+    gcs_data = sec_gcs_data(sec_raw_data.alias(year=year, quarters=quarters), bucket_name=bucket_name, keep_local=keep_local)
+    staging_data = meltano_staging_data(gcs_data)
+    bigquery_data = bigquery_sec_data(staging_data)
+    return sec_pipeline_summary(bigquery_data)
 
 
-@job(
+@graph(
     description="Download and upload SEC data to GCS only",
 )
-def sec_download_job():
+def sec_download_graph(year: int, quarters: List[str]):
     """
-    SEC download job that only handles download and GCS upload.
+    SEC download graph that only handles download and GCS upload.
     
-    This job runs:
+    This graph runs:
     1. Download SEC data for specified year/quarters
     2. Upload to Google Cloud Storage
     """
-    sec_gcs_data()
+    return sec_gcs_data(sec_raw_data.alias(year=year, quarters=quarters))
 
 
-@job(
+@graph(
     description="Load existing SEC data from GCS to BigQuery using Meltano",
 )
-def sec_bigquery_load_job():
+def sec_bigquery_load_graph():
     """
-    BigQuery load job that assumes data is already in GCS.
+    BigQuery load graph that assumes data is already in GCS.
     
-    This job runs:
+    This graph runs:
     1. Stage data from GCS for Meltano
     2. Load to BigQuery using Meltano
     3. Generate execution summary
     """
-    sec_pipeline_summary()
+    # Create dependency chain: staging -> bigquery -> summary
+    bigquery_data = bigquery_sec_data(meltano_staging_data())
+    return sec_pipeline_summary(bigquery_data)
 
 
-@job(
-    description="Backfill historical SEC data for multiple years",
-)
-def sec_backfill_job():
-    """
-    Backfill job for loading historical SEC data.
-    
-    This job is designed to be run with multiple run requests
-    for different years and quarters.
-    """
-    sec_pipeline_summary()
-
-
-@op(
-    description="Generate run requests for backfill",
-    out=Out(List[RunRequest]),
-)
-def generate_backfill_requests(context) -> List[RunRequest]:
-    """
-    Generate run requests for backfilling historical data.
-    
-    This op can be configured with year ranges and quarters to backfill.
-    """
-    # Default configuration - can be overridden via run config
-    start_year = 2020
-    end_year = 2023
-    quarters = ["q1", "q2", "q3", "q4"]
-    
-    run_requests = []
-    
-    for year in range(start_year, end_year + 1):
-        for quarter in quarters:
-            run_requests.append(
-                RunRequest(
-                    run_key=f"backfill_{year}_{quarter}",
-                    run_config={
-                        "ops": {
-                            "sec_raw_data": {
-                                "config": {
-                                    "year": year,
-                                    "quarters": [quarter],
-                                }
-                            }
-                        }
-                    },
-                )
-            )
-    
-    return run_requests
-
-
-@graph
-def sec_backfill_graph():
-    """
-    Graph for backfilling SEC data with multiple execution requests.
-    """
-    requests = generate_backfill_requests()
-    # Note: In a real implementation, you'd use a sensor or schedule
-    # to trigger these run requests. This is a simplified example.
-
-
-# Create job definitions
-SEC_PIPELINE_JOB = sec_pipeline_job
-SEC_DOWNLOAD_JOB = sec_download_job
-SEC_BIGQUERY_LOAD_JOB = sec_bigquery_load_job
-SEC_BACKFILL_JOB = sec_backfill_job
-
-
-# Asset-based job definitions for more granular control
-SEC_ALL_ASSETS_JOB = Definitions(
-    assets=[
-        sec_raw_data,
-        sec_gcs_data,
-        meltano_staging_data,
-        bigquery_sec_data,
-        sec_pipeline_summary,
-    ],
-    jobs=[
-        sec_pipeline_job,
-        sec_download_job,
-        sec_bigquery_load_job,
-    ],
-).get_job_def("sec_pipeline_job")
+# Convert graphs to jobs
+sec_pipeline_job = sec_pipeline_graph.to_job()
+sec_download_job = sec_download_graph.to_job()
+sec_bigquery_load_job = sec_bigquery_load_graph.to_job()
 
 
 # Configuration schemas for different job types
@@ -174,3 +101,79 @@ class SecBackfillConfig(Config):
     quarters: Optional[List[str]] = None
     bucket_name: str = "dsai-m2-bucket"
     keep_local: bool = False
+
+
+# Job factory functions for dynamic configuration
+def create_sec_pipeline_job(config: SecPipelineConfig) -> JobDefinition:
+    """
+    Create a SEC pipeline job with specific configuration.
+    
+    Args:
+        config: Pipeline configuration
+        
+    Returns:
+        Configured job definition
+    """
+    return sec_pipeline_job.to_job(
+        name=f"sec_pipeline_{config.year}",
+        config={
+            "ops": {
+                "sec_raw_data": {
+                    "config": {
+                        "year": config.year,
+                        "quarters": config.quarters,
+                    }
+                },
+                "sec_gcs_data": {
+                    "config": {
+                        "year": config.year,
+                        "quarters": config.quarters,
+                        "bucket_name": config.bucket_name,
+                        "keep_local": config.keep_local,
+                    }
+                },
+                "meltano_staging_data": {
+                    "config": {
+                        "year": config.year,
+                        "quarters": config.quarters,
+                    }
+                },
+                "bigquery_sec_data": {
+                    "config": {
+                        "year": config.year,
+                        "quarters": config.quarters,
+                    }
+                },
+                "sec_pipeline_summary": {
+                    "config": {
+                        "year": config.year,
+                        "quarters": config.quarters,
+                    }
+                },
+            }
+        }
+    )
+
+
+def create_sec_backfill_job(config: SecBackfillConfig) -> List[JobDefinition]:
+    """
+    Create multiple SEC pipeline jobs for backfill.
+    
+    Args:
+        config: Backfill configuration
+        
+    Returns:
+        List of configured job definitions
+    """
+    jobs = []
+    
+    for year in range(config.start_year, config.end_year + 1):
+        job_config = SecPipelineConfig(
+            year=year,
+            quarters=config.quarters,
+            bucket_name=config.bucket_name,
+            keep_local=config.keep_local,
+        )
+        jobs.append(create_sec_pipeline_job(job_config))
+    
+    return jobs

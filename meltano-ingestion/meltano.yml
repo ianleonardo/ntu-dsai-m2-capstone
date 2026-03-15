@@ -38,7 +38,12 @@ plugins:
         delimiter: "\t"
 
   - name: tap-jsonl
-    pip_url: git+https://github.com/MeltanoLabs/tap-spreadsheet-anywhere.git
+    namespace: tap_jsonl
+    pip_url: tap-jsonl
+    executable: tap-jsonl
+    capabilities:
+      - discover
+      - catalog
     config:
       path: staging/company_tickers.jsonl
       stream_name: SEC_COMPANY_TICKERS

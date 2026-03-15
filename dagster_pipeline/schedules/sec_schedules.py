@@ -12,7 +12,7 @@ from dagster import (
     build_schedule_context,
 )
 
-from dagster_pipeline.jobs.sec_pipeline import SEC_PIPELINE_JOB, SEC_DOWNLOAD_JOB, SEC_BIGQUERY_LOAD_JOB
+from dagster_pipeline.jobs.sec_pipeline import sec_pipeline_job, sec_download_job, sec_bigquery_load_job
 
 
 def get_current_quarter() -> str:
@@ -60,9 +60,9 @@ def get_quarter_start_date(quarter: str, year: int) -> datetime:
 # Schedule for quarterly SEC data loading
 quarterly_sec_schedule = ScheduleDefinition(
     name="quarterly_sec_schedule",
-    job=SEC_PIPELINE_JOB,
-    cron_schedule="0 6 1 1,4,7,10 *",  # 6 AM on Jan 1, Apr 1, Jul 1, Oct 1
-    default_status=DefaultScheduleStatus.STOPPED,
+    cron_schedule="0 2 1 */3 *",  # At 2:00 AM on the first day of every quarter (Jan, Apr, Jul, Oct)
+    job=sec_pipeline_job,
+    default_status=DefaultScheduleStatus.RUNNING,
     description="Runs SEC data pipeline at the start of each quarter for the previous quarter's data",
     execution_timezone="UTC",
 )
@@ -117,7 +117,7 @@ def quarterly_sec_schedule_context():
 # Monthly validation schedule
 monthly_validation_schedule = ScheduleDefinition(
     name="monthly_validation_schedule",
-    job=SEC_BIGQUERY_LOAD_JOB,
+    job=sec_bigquery_load_job,
     cron_schedule="0 8 1 * *",  # 8 AM on the 1st of every month
     default_status=DefaultScheduleStatus.STOPPED,
     description="Monthly validation of SEC data pipeline and data quality checks",
@@ -162,7 +162,7 @@ def monthly_validation_schedule_context():
 # Weekly health check schedule
 weekly_health_check_schedule = ScheduleDefinition(
     name="weekly_health_check_schedule",
-    job=SEC_DOWNLOAD_JOB,
+    job=sec_download_job,
     cron_schedule="0 7 * * 1",  # 7 AM every Monday
     default_status=DefaultScheduleStatus.STOPPED,
     description="Weekly health check of SEC data availability and pipeline components",
@@ -205,7 +205,7 @@ def weekly_health_check_schedule_context():
 # Year-end complete load schedule
 year_end_schedule = ScheduleDefinition(
     name="year_end_schedule",
-    job=SEC_PIPELINE_JOB,
+    job=sec_pipeline_job,
     cron_schedule="0 6 1 1 *",  # 6 AM on January 1st
     default_status=DefaultScheduleStatus.STOPPED,
     description="Year-end complete load of all quarters for the previous year",
@@ -326,7 +326,7 @@ def create_custom_schedule(
     
     return ScheduleDefinition(
         name=name,
-        job=SEC_PIPELINE_JOB,
+        job=sec_pipeline_job,
         cron_schedule=cron_expression,
         default_status=DefaultScheduleStatus.STOPPED,
         description=description,
@@ -399,7 +399,7 @@ def create_backfill_schedule(years: List[int]) -> ScheduleDefinition:
     
     return ScheduleDefinition(
         name="backfill_schedule",
-        job=SEC_PIPELINE_JOB,
+        job=sec_pipeline_job,
         cron_schedule="0 2 1 1 *",  # Run once on January 1st at 2 AM
         default_status=DefaultScheduleStatus.STOPPED,
         description="One-time backfill of historical SEC data",

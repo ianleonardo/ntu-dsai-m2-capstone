@@ -65,20 +65,22 @@ class SecGcsConfig(Config):
 )
 def sec_raw_data(
     context: AssetExecutionContext,
-    config: SecDownloadConfig,
+    year: int,
+    quarters: Optional[List[str]] = None,
 ) -> MaterializeResult:
     """
     Download SEC insider transaction data for specified year and quarters.
     
     Args:
         context: Dagster execution context
-        config: Configuration containing year and quarters
+        year: Year to download data for
+        quarters: List of quarters (q1, q2, q3, q4). If None, downloads all quarters.
     
     Returns:
         MaterializeResult with metadata about the download
     """
-    year = config.year
-    quarters = config.quarters or ["q1", "q2", "q3", "q4"]
+    if quarters is None:
+        quarters = ["q1", "q2", "q3", "q4"]
     
     context.log.info(f"Starting SEC data download for year {year}, quarters: {quarters}")
     
@@ -133,16 +135,18 @@ def sec_raw_data(
 )
 def sec_gcs_data(
     context: AssetExecutionContext,
-    config: SecGcsConfig,
     sec_raw_data: MaterializeResult,
+    bucket_name: Optional[str] = None,
+    keep_local: Optional[bool] = None,
 ) -> MaterializeResult:
     """
     Upload downloaded SEC data to Google Cloud Storage.
     
     Args:
         context: Dagster execution context
-        config: Configuration for GCS upload
         sec_raw_data: Output from sec_raw_data asset
+        bucket_name: GCS bucket name (optional, defaults to env var)
+        keep_local: Whether to keep local data after upload (optional, defaults to False)
     
     Returns:
         MaterializeResult with metadata about the upload
@@ -151,8 +155,11 @@ def sec_gcs_data(
     year = sec_raw_data.metadata.get("year")
     quarters = sec_raw_data.metadata.get("quarters", ["q1", "q2", "q3", "q4"])
     
-    bucket_name = config.bucket_name
-    keep_local = config.keep_local
+    # Use provided values or defaults
+    if bucket_name is None:
+        bucket_name = os.getenv("GCS_BUCKET_NAME", "dsai-m2-bucket")
+    if keep_local is None:
+        keep_local = False
     
     context.log.info(f"Starting GCS upload for year {year}, quarters: {quarters}")
     
