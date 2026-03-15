@@ -1,5 +1,6 @@
-# Staging files (synced from GCS; tab-delimited CSV for tap-csv)
+# Staging files (synced from GCS or SEC; CSV for tap-csv, JSONL for tap-jsonl)
 staging/*.csv
+staging/*.jsonl
 # Meltano install artifacts
 .meltano/
 *.lock

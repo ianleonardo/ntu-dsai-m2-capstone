@@ -1,5 +1,5 @@
-# Meltano project: SEC Insider Transactions — GCS to BigQuery
-# See docs/meltano_SEC_ingestion_guide.md for usage.
+# Meltano project: SEC data (insider forms + company tickers) — GCS/JSON to BigQuery
+# See docs/meltano_sec_ingestion_guide.md for usage.
 
 default_environment: dev
 environments:
@@ -37,6 +37,14 @@ plugins:
         keys: [ACCESSION_NUMBER, DERIV_HOLDING_SK]
         delimiter: "\t"
 
+  - name: tap-jsonl
+    pip_url: git+https://github.com/MeltanoLabs/tap-spreadsheet-anywhere.git
+    config:
+      path: staging/company_tickers.jsonl
+      stream_name: SEC_COMPANY_TICKERS
+      primary_keys: ["ticker"]
+      encoding: utf-8
+
   loaders:
   - name: target-bigquery
     variant: z3z1ma
@@ -59,5 +67,8 @@ jobs:
   - name: load-sec-insider
     tasks:
       - tap-csv target-bigquery
+  - name: load-sec-tickers
+    tasks:
+      - tap-jsonl target-bigquery
 
 project_id: 09eda458-11f8-4143-b6f6-105670ea9e19

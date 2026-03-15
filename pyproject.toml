@@ -6,7 +6,7 @@ authors = [
     {name = "Ian Leonardo", email = "ian@example.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9,<3.14"
 dependencies = [
     "requests>=2.28.0",
     "google-cloud-storage>=2.10.0",
@@ -23,6 +23,13 @@ dev = [
 ]
 meltano = [
     "meltano>=3.0,<5",
+]
+dagster = [
+    "dagster>=1.12.0",
+    "dagster-cloud>=1.12.0",
+    "dagster-gcp>=0.28.0",
+    "dagster-postgres>=0.28.0",
+    "dagster-webserver>=1.12.0",
 ]
 
 [dependency-groups]
@@ -46,3 +53,6 @@ python_version = "3.8"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.dagster]
+module_name = "dagster_pipeline.repository"

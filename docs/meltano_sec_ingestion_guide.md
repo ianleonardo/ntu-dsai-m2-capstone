@@ -149,6 +149,17 @@ After a successful run, BigQuery will have dataset `insider_transactions` with t
 - **Accumulating multiple years**
   With `upsert: true`, run the pipeline for different years (e.g. `SEC_LOAD_YEAR=2024 bash run_load_sec_insider.sh` then `SEC_LOAD_YEAR=2025 ...`). Rows are merged by primary key; duplicate keys update existing rows. Tables must remain unique on the configured keys (as per the SEC readme).
 
+## SEC company tickers (same project)
+
+The same **`meltano-ingestion`** project can load [SEC company_tickers.json](https://www.sec.gov/files/company_tickers.json) into BigQuery table `SEC_COMPANY_TICKERS` (flat, primary key `ticker`) using **tap-jsonl** (no CSV conversion).
+
+**Run (from repo root):**
+```bash
+cd meltano-ingestion
+uv run --project .. bash run_load_sec_tickers.sh
+```
+The script downloads the JSON, writes **JSONL** to `staging/company_tickers.jsonl` (one JSON object per line), then runs `meltano run tap-jsonl target-bigquery`. Table: `ntu-dsai-488112.insider_transactions.SEC_COMPANY_TICKERS`.
+
 ## References
 
 - SEC insider data: [Insider Transactions Data Sets](https://www.sec.gov/developer) and `docs/insider_transactions_readme.pdf`

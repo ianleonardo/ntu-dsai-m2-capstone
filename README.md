@@ -14,7 +14,7 @@ This project is a bespoke Stock Price Monitor designed to ingest, process, and s
 ntu-dsai-m2-capstone/
 ├── data/                  # Local storage for extracted raw data (Finnhub, SEC)
 ├── docs/                  # Project documentation and ingestion guides
-├── meltano-ingestion/     # Meltano ELT project configuration
+├── meltano-ingestion/            # Meltano: SEC insider forms + company tickers → BigQuery
 ├── notebooks/             # Jupyter notebooks for data exploration and initial extraction
 ├── scripts/               # Python scripts for automated data downloads
 └── README.md              # This project overview
@@ -23,7 +23,7 @@ ntu-dsai-m2-capstone/
 ### Architecture & Pipeline (Current Stage)
 The project currently implements the **Extract** and **Load** phases of the ELT pipeline:
 - **Data Extraction**: Custom Python scripts (`scripts/download_sec.py`) and Jupyter notebooks (`notebooks/finnhub_downloader.ipynb`) handle downloading data from REST APIs and ZIP archives.
-- **Data Loading (Meltano)**: The `meltano-ingestion` directory uses `tap-csv` to read extracted flat files and `target-bigquery` to load the structured data directly into Google Cloud BigQuery.
+- **Data Loading (Meltano)**: `meltano-ingestion` loads SEC insider TSVs from GCS and SEC company tickers JSON into BigQuery via `tap-csv` and `target-bigquery`.
 
 ### Setup Instructions
 
