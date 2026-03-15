@@ -39,8 +39,9 @@ def sec_pipeline_graph(year: int, quarters: List[str], bucket_name: Optional[str
     4. Load to BigQuery
     5. Generate execution summary
     """
-    # Create dependency chain: download -> gcs -> staging -> bigquery -> summary
-    gcs_data = sec_gcs_data(sec_raw_data.alias(year=year, quarters=quarters), bucket_name=bucket_name, keep_local=keep_local)
+    # Create configured assets with parameters
+    download_asset = sec_raw_data.configured(year=year, quarters=quarters)
+    gcs_data = sec_gcs_data.configured(bucket_name=bucket_name, keep_local=keep_local)(download_asset)
     staging_data = meltano_staging_data(gcs_data)
     bigquery_data = bigquery_sec_data(staging_data)
     return sec_pipeline_summary(bigquery_data)
@@ -49,7 +50,7 @@ def sec_pipeline_graph(year: int, quarters: List[str], bucket_name: Optional[str
 @graph(
     description="Download and upload SEC data to GCS only",
 )
-def sec_download_graph(year: int, quarters: List[str]):
+def sec_download_graph(year: int, quarters: List[str], bucket_name: Optional[str] = None, keep_local: Optional[bool] = None):
     """
     SEC download graph that only handles download and GCS upload.
     
@@ -57,7 +58,8 @@ def sec_download_graph(year: int, quarters: List[str]):
     1. Download SEC data for specified year/quarters
     2. Upload to Google Cloud Storage
     """
-    return sec_gcs_data(sec_raw_data.alias(year=year, quarters=quarters))
+    download_asset = sec_raw_data.configured(year=year, quarters=quarters)
+    return sec_gcs_data.configured(bucket_name=bucket_name, keep_local=keep_local)(download_asset)
 
 
 @graph(
