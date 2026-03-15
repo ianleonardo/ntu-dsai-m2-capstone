@@ -1,18 +1,63 @@
+# Meltano project: SEC Insider Transactions — GCS to BigQuery
+# See docs/meltano_SEC_ingestion_guide.md for usage.
+
 default_environment: dev
-project_id: 019cddb9-338f-759b-bd46-00ef8680ca0e
 environments:
-- name: dev
-- name: staging
-- name: prod
+  - name: dev
+
 plugins:
   extractors:
   - name: tap-csv
     variant: meltanolabs
     pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+      - entity: SEC_SUBMISSION
+        path: staging/SUBMISSION.csv
+        keys: [ACCESSION_NUMBER]
+        delimiter: "\t"
+      - entity: SEC_REPORTINGOWNER
+        path: staging/REPORTINGOWNER.csv
+        keys: [ACCESSION_NUMBER, RPTOWNERCIK]
+        delimiter: "\t"
+      - entity: SEC_NONDERIV_TRANS
+        path: staging/NONDERIV_TRANS.csv
+        keys: [ACCESSION_NUMBER, NONDERIV_TRANS_SK]
+        delimiter: "\t"
+      - entity: SEC_NONDERIV_HOLDING
+        path: staging/NONDERIV_HOLDING.csv
+        keys: [ACCESSION_NUMBER, NONDERIV_HOLDING_SK]
+        delimiter: "\t"
+      - entity: SEC_DERIV_TRANS
+        path: staging/DERIV_TRANS.csv
+        keys: [ACCESSION_NUMBER, DERIV_TRANS_SK]
+        delimiter: "\t"
+      - entity: SEC_DERIV_HOLDING
+        path: staging/DERIV_HOLDING.csv
+        keys: [ACCESSION_NUMBER, DERIV_HOLDING_SK]
+        delimiter: "\t"
+
   loaders:
-  - name: target-jsonl
-    variant: andyh1203
-    pip_url: target-jsonl
   - name: target-bigquery
     variant: z3z1ma
-    pip_url: git+https://github.com/z3z1ma/target-bigquery.git
+    pip_url: git+https://github.com/z3z1ma/target-bigquery.git setuptools<70
+    config:
+      project: ntu-dsai-488112
+      dataset: insider_transactions
+      location: asia-southeast1
+      partition_granularity: year
+      denormalized: true
+      flattening_enabled: true
+      flattening_max_depth: 1
+      method: batch_job
+      batch_size: 500000
+      # Upsert by primary key: accumulate multiple runs (e.g. multiple years) without duplicate keys
+      upsert: true
+        # credentials_path set via TARGET_BIGQUERY_CREDENTIALS_PATH in .env
+
+jobs:
+  - name: load-sec-insider
+    tasks:
+      - tap-csv target-bigquery
+
+project_id: 09eda458-11f8-4143-b6f6-105670ea9e19

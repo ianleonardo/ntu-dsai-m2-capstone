@@ -1,3 +1,6 @@
-/venv
-/.meltano
-.env
+# Staging files (synced from GCS; tab-delimited CSV for tap-csv)
+staging/*.csv
+# Meltano install artifacts
+.meltano/
+*.lock
+plugins/
