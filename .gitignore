@@ -207,3 +207,11 @@ marimo/_lsp/
 __marimo__/
 
 .DS_Store
+
+# Dagster storage
+.dagster/
+.tmp_dagster_home_*
+
+# DBT
+dbt_packages/
+logs/
