@@ -24,8 +24,8 @@ def main():
     parser.add_argument(
         "--staging-dir",
         type=Path,
-        default=repo_root / "meltano-ingestion" / "staging",
-        help="Directory to write company_tickers.jsonl (default: meltano-ingestion/staging)",
+        default=repo_root / "dataprocessing" / "meltano_ingestion" / "staging",
+        help="Directory to write company_tickers.jsonl (default: dataprocessing/meltano_ingestion/staging)",
     )
     parser.add_argument(
         "--output",

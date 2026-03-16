@@ -1,0 +1,90 @@
+version: 2
+
+models:
+  - name: dim_reporting_owner
+    description: "Dimension table for reporting owners with role types and insider status"
+    columns:
+      - name: reporting_owner_cik
+        description: "Primary key for reporting owner"
+        tests:
+          - not_null
+      - name: reporting_owner_name
+        description: "Name of the reporting owner"
+      - name: role_type
+        description: "Consolidated role type (Director, Officer, etc.)"
+      - name: is_insider
+        description: "Flag indicating if person is considered an insider"
+
+  - name: dim_security
+    description: "Dimension table for securities and instruments"
+    columns:
+      - name: security_key
+        description: "Surrogate key for security"
+        tests:
+          - not_null
+      - name: SECURITY_TITLE
+        description: "Title of the security"
+      - name: security_type
+        description: "Type of security (Derivative or Non-Derivative)"
+      - name: EXERCISE_PRICE
+        description: "Exercise price for derivative securities"
+      - name: EXPIRATION_DATE
+        description: "Expiration date for derivative securities"
+
+  - name: dim_date
+    description: "Date dimension for temporal analysis"
+    columns:
+      - name: date_key
+        description: "Primary key for date dimension"
+        tests:
+          - unique
+          - not_null
+      - name: date_field
+        description: "Actual date value"
+      - name: year
+        description: "Year component"
+      - name: quarter
+        description: "Quarter component"
+      - name: month
+        description: "Month component"
+      - name: is_weekend
+        description: "Flag indicating if date is weekend"
+
+  - name: dim_transaction_type
+    description: "Dimension table for transaction types"
+    columns:
+      - name: transaction_type_key
+        description: "Primary key for transaction type"
+        tests:
+          - not_null
+      - name: TRANSACTION_CODING_CODE
+        description: "SEC transaction coding"
+      - name: transaction_direction
+        description: "Direction of transaction (Acquired/Disposed)"
+      - name: form_type_description
+        description: "Description of form type"
+
+  - name: fct_insider_transactions
+    description: "Fact table for insider transactions with ACCESSION_NUMBER as primary key"
+    columns:
+      - name: ACCESSION_NUMBER
+        description: "Primary key - SEC accession number"
+        tests:
+          - unique
+          - not_null
+      - name: filing_date_key
+        description: "Foreign key to date dimension for filing date"
+      - name: period_report_date_key
+        description: "Foreign key to date dimension for period report date"
+      - name: FORM_TYPE
+        description: "Type of SEC form filed"
+      - name: total_transaction_count
+        description: "Total number of transactions"
+      - name: total_shares_acquired
+        description: "Total shares acquired"
+      - name: total_shares_disposed
+        description: "Total shares disposed"
+      - name: total_non_deriv_value
+        description: "Total value of non-derivative transactions"
+      - name: reporting_owner_count
+        description: "Number of reporting owners"

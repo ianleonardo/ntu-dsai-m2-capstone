@@ -13,30 +13,30 @@ sys.path.insert(0, str(project_root))
 def test_imports():
     """Test that all Dagster assets can be imported."""
     try:
-        from dagster_pipeline.assets.sec_download import sec_raw_data, sec_gcs_data
+        from dataprocessing.dagster_orchestration.assets.sec_download import sec_raw_data, sec_gcs_data
         print("✅ SEC download assets imported successfully")
         
-        from dagster_pipeline.assets.meltano_integration import (
+        from dataprocessing.dagster_orchestration.assets.meltano_integration import (
             meltano_staging_data,
             bigquery_sec_data,
             sec_pipeline_summary,
         )
         print("✅ Meltano integration assets imported successfully")
         
-        from dagster_pipeline.jobs.sec_pipeline import (
-            SEC_PIPELINE_JOB,
-            SEC_DOWNLOAD_JOB,
-            SEC_BIGQUERY_LOAD_JOB,
+        from dataprocessing.dagster_orchestration.jobs.sec_pipeline import (
+            sec_pipeline_job,
+            sec_download_job,
+            sec_bigquery_load_job,
         )
         print("✅ Pipeline jobs imported successfully")
         
-        from dagster_pipeline.schedules.sec_schedules import (
+        from dataprocessing.dagster_orchestration.schedules.sec_schedules import (
             quarterly_sec_schedule,
             monthly_validation_schedule,
         )
         print("✅ Schedules imported successfully")
         
-        from dagster_pipeline.repository import sec_data_repository
+        from dataprocessing.dagster_orchestration.repository import sec_data_repository
         print("✅ Repository imported successfully")
         
         return True
@@ -48,7 +48,7 @@ def test_imports():
 def test_asset_configuration():
     """Test asset configuration."""
     try:
-        from dagster_pipeline.assets.sec_download import SecDownloadConfig, SecGcsConfig
+        from dataprocessing.dagster_orchestration.assets.sec_download import SecDownloadConfig, SecGcsConfig
         
         # Test configuration classes
         config1 = SecDownloadConfig(year=2023, quarters=["q1"])

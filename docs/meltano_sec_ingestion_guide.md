@@ -47,7 +47,7 @@ Optional overrides for the GCS sync step (defaults are fine for the standard set
 - `SEC_LOAD_QUARTER` – Optional: `q1`, `q2`, `q3`, or `q4`; if unset, all quarters are synced
 - `GCS_BUCKET` – Bucket name (default: `dsai-m2-bucket`)
 - `GCS_SEC_PREFIX` – Prefix under bucket (default: `sec-data`)
-- `STAGING_DIR` – Local staging directory relative to `meltano-ingestion` (default: `staging`)
+- `STAGING_DIR` – Local staging directory relative to `dataprocessing/meltano_ingestion` (default: `staging`)
 
 ## Setup
 
@@ -57,10 +57,10 @@ Optional overrides for the GCS sync step (defaults are fine for the standard set
    uv sync --group meltano
    ```
 
-2. **Install Meltano plugins** (run from `meltano-ingestion`; use `uv run` so the project venv is used):
+2. **Install Meltano plugins** (run from `dataprocessing/meltano_ingestion`; use `uv run` so the project venv is used):
 
    ```bash
-   cd meltano-ingestion
+   cd dataprocessing/meltano_ingestion
    uv run --project .. meltano install
    ```
 
@@ -68,7 +68,7 @@ Optional overrides for the GCS sync step (defaults are fine for the standard set
    **Note:** If `target-bigquery` fails to install (e.g. `pendulum` build error on Python 3.12), use Python 3.11 for the project: from the repo root run `uv python pin 3.11`, then `uv sync --group meltano`, then retry the `meltano install` above.
 
 3. **Configure credentials**  
-   Ensure `.env` in the repo root sets `TARGET_BIGQUERY_CREDENTIALS_PATH` (or `GOOGLE_APPLICATION_CREDENTIALS`). Meltano and the sync script both read from the project root `.env` when you run from `meltano-ingestion`.
+   Ensure `.env` in the repo root sets `TARGET_BIGQUERY_CREDENTIALS_PATH` (or `GOOGLE_APPLICATION_CREDENTIALS`). Meltano and the sync script both read from the project root `.env` when you run from `dataprocessing/meltano_ingestion`.
 
 ## Running the Pipeline
 
@@ -76,7 +76,7 @@ Optional overrides for the GCS sync step (defaults are fine for the standard set
 Use the wrapper script to sync from GCS then run the Meltano job:
 
 ```bash
-cd meltano-ingestion
+cd dataprocessing/meltano_ingestion
 uv run --project .. bash run_load_sec_insider.sh
 # With options (e.g. year and quarter):
 uv run --project .. bash run_load_sec_insider.sh --year 2025 --quarter q1
@@ -85,7 +85,7 @@ uv run --project .. bash run_load_sec_insider.sh --year 2025 --quarter q1
 **Option B – Steps separately**
 
 ```bash
-cd meltano-ingestion
+cd dataprocessing/meltano_ingestion
 # 1. Sync from GCS to staging (writes tab-delimited .csv files)
 uv run --project .. python ../scripts/sync_sec_from_gcs.py
 # 2. Load into BigQuery
@@ -97,7 +97,7 @@ Run the sync script first so `staging/` contains the tab-delimited `.csv` files.
 **Option C – Run sync script directly** (e.g. for debugging):
 
 ```bash
-cd meltano-ingestion
+cd dataprocessing/meltano_ingestion
 # All quarters for 2025 (default)
 uv run --project .. python ../scripts/sync_sec_from_gcs.py
 # Single quarter via env or CLI
@@ -112,7 +112,7 @@ After a successful run, BigQuery will have dataset `insider_transactions` with t
 1. **Sync (`scripts/sync_sec_from_gcs.py`)**
    - For the given year, downloads TSVs from `gs://dsai-m2-bucket/sec-data/{year}/{year}q1/` … `{year}q4/` for each of the 6 tables.
    - Merges the four quarters per table (single header, data rows from all quarters) and adds a `year` column.
-   - Writes tab-delimited CSV (`.csv`) into `meltano-ingestion/staging/` for tap-csv.
+   - Writes tab-delimited CSV (`.csv`) into `dataprocessing/meltano_ingestion/staging/` for tap-csv.
 
 2. **Extract (tap-csv)**
    - Reads the 6 CSV files from `staging/` with **tab** delimiter and the primary keys above.
@@ -130,12 +130,12 @@ After a successful run, BigQuery will have dataset `insider_transactions` with t
   Some Meltano versions do not resolve the `job` definition from `meltano.yml`. Run the pipeline directly: `meltano run tap-csv target-bigquery`. The wrapper script `run_load_sec_insider.sh` uses the direct form.
 
 - **target-bigquery: ModuleNotFoundError: No module named 'pkg_resources'**  
-  The loader’s dependency (PyFilesystem) expects `setuptools` in its venv. From `meltano-ingestion` run:  
+  The loader’s dependency (PyFilesystem) expects `setuptools` in its venv. From `dataprocessing/meltano_ingestion` run:  
   `./.meltano/loaders/target-bigquery/venv/bin/pip install setuptools`  
   Then re-run the pipeline.
 
 - **target-bigquery install fails (pendulum / distutils / ModuleNotFoundError)**  
-  The loader’s dependency `pendulum` does not build on Python 3.12 (distutils was removed). Use Python 3.11 for the project: from the repo root run `uv python pin 3.11`, then `uv sync --group meltano`, then from `meltano-ingestion` run `uv run --project .. meltano install` again.
+  The loader’s dependency `pendulum` does not build on Python 3.12 (distutils was removed). Use Python 3.11 for the project: from the repo root run `uv python pin 3.11`, then `uv sync --group meltano`, then from `dataprocessing/meltano_ingestion` run `uv run --project .. meltano install` again.
 
 - **“No data found for …”**  
   Check that the bucket has data under `sec-data/{year}/{year}q1/` … `q4/` and that the service account has Storage Object Viewer.
@@ -144,18 +144,18 @@ After a successful run, BigQuery will have dataset `insider_transactions` with t
   Ensure the service account has BigQuery Data Editor and BigQuery Job User in project `ntu-dsai-488112`.
 
 - **tap-csv not finding files**
-  Run the sync step first so that `meltano-ingestion/staging/` contains the 6 tab-delimited `.csv` files.
+  Run the sync step first so that `dataprocessing/meltano_ingestion/staging/` contains the 6 tab-delimited `.csv` files.
 
 - **Accumulating multiple years**
   With `upsert: true`, run the pipeline for different years (e.g. `SEC_LOAD_YEAR=2024 bash run_load_sec_insider.sh` then `SEC_LOAD_YEAR=2025 ...`). Rows are merged by primary key; duplicate keys update existing rows. Tables must remain unique on the configured keys (as per the SEC readme).
 
 ## SEC company tickers (same project)
 
-The same **`meltano-ingestion`** project can load [SEC company_tickers.json](https://www.sec.gov/files/company_tickers.json) into BigQuery table `SEC_COMPANY_TICKERS` (flat, primary key `ticker`) using **tap-jsonl** (no CSV conversion).
+The same **`dataprocessing/meltano_ingestion`** project can load [SEC company_tickers.json](https://www.sec.gov/files/company_tickers.json) into BigQuery table `SEC_COMPANY_TICKERS` (flat, primary key `ticker`) using **tap-jsonl** (no CSV conversion).
 
 **Run (from repo root):**
 ```bash
-cd meltano-ingestion
+cd dataprocessing/meltano_ingestion
 uv run --project .. bash run_load_sec_tickers.sh
 ```
 The script downloads the JSON, writes **JSONL** to `staging/company_tickers.jsonl` (one JSON object per line), then runs `meltano run tap-jsonl target-bigquery`. Table: `ntu-dsai-488112.insider_transactions.SEC_COMPANY_TICKERS`.

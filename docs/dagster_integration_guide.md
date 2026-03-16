@@ -25,19 +25,21 @@ The Dagster integration follows a layered architecture:
 ## Project Structure
 
 ```
-dagster_pipeline/
-├── __init__.py
-├── assets/
+dataprocessing/
+├── dagster_orchestration/
 │   ├── __init__.py
-│   ├── sec_download.py          # SEC data download and GCS upload
-│   └── meltano_integration.py   # Meltano integration and BigQuery load
-├── jobs/
-│   ├── __init__.py
-│   └── sec_pipeline.py          # Pipeline orchestration jobs
-├── schedules/
-│   ├── __init__.py
-│   └── sec_schedules.py        # Automated execution schedules
-└── repository.py                # Dagster repository definition
+│   ├── assets/
+│   │   ├── __init__.py
+│   │   ├── sec_download.py          # SEC data download and GCS upload
+│   │   └── meltano_integration.py   # Meltano integration and BigQuery load
+│   ├── jobs/
+│   │   ├── __init__.py
+│   │   └── sec_pipeline.py          # Pipeline orchestration jobs
+│   ├── schedules/
+│   │   ├── __init__.py
+│   │   └── sec_schedules.py         # Automated execution schedules
+│   └── repository.py                # Dagster repository definition
+└── meltano_ingestion/               # Meltano project (SEC insider forms + company tickers → BigQuery)
 ```
 
 ## Key Components
@@ -73,25 +75,98 @@ dagster_pipeline/
 
 ### Starting Dagster Development Server
 
+Run the following **from the project root** (the directory that contains `pyproject.toml`), not from `dataprocessing/dagster_orchestration/`. The CLI looks for `[tool.dagster]` in `pyproject.toml` in the current working directory.
+
 ```bash
-# Start the Dagster web UI
+# From project root: start the Dagster web UI
 uv run --with dagster dagster dev --port 3001
+
+# Or pass the code location explicitly (also from project root)
+uv run --with dagster dagster dev -m dataprocessing.dagster_orchestration.repository --port 3001
 
 # Access the web UI at http://127.0.0.1:3001
 ```
 
+Alternatively, use the recommended CLI (from project root): `uv run --with dagster dg dev --port 3001`.
+
 ### Running Pipeline Jobs
 
-#### Via Web UI
-1. Navigate to http://127.0.0.1:3001
-2. Select the desired job (e.g., `sec_pipeline_job`)
-3. Configure parameters (year, quarters, bucket name)
-4. Click "Launch Run"
+#### Via Web UI (year and quarter)
+
+Each job has default run config (year 2023, quarters `["q1"]`) so the Launchpad can show prefilled values. If the Config tab is empty, click **Scaffold all default config** (or paste one of the YAML samples below) so you do not get "Missing required config entry 'ops'".
+
+1. Open the Dagster UI (e.g. http://127.0.0.1:3001).
+2. Go to **Jobs** and select the job (e.g. **sec_pipeline_job** or **sec_download_job**).
+3. Click **Launch Run**.
+4. In the launch dialog, open the **Config** tab and paste the appropriate YAML sample:
+
+   **Full pipeline (sec_pipeline_job) – copy this into Config and launch:**
+   ```yaml
+   ops:
+     sec_raw_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+     sec_gcs_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+         bucket_name: "dsai-m2-bucket"
+         keep_local: false
+     meltano_staging_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+         bucket_name: "dsai-m2-bucket"
+     bigquery_sec_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+     sec_pipeline_summary:
+       config:
+         year: 2023
+         quarters: ["q1"]
+   ```
+
+   **Download only (sec_download_job):**
+   ```yaml
+   ops:
+     sec_raw_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+     sec_gcs_data:
+       config:
+         year: 2023
+         quarters: ["q1"]
+         bucket_name: "dsai-m2-bucket"
+         keep_local: false
+   ```
+
+   **Multiple quarters (e.g. 2023 Q1 and Q2):**
+   ```yaml
+   ops:
+     sec_raw_data:
+       config:
+         year: 2023
+         quarters: ["q1", "q2"]
+     sec_gcs_data:
+       config:
+         year: 2023
+         quarters: ["q1", "q2"]
+         bucket_name: "dsai-m2-bucket"
+         keep_local: false
+   ```
+
+   **Full year (all four quarters):** omit `quarters` or set to `["q1", "q2", "q3", "q4"]`.
+6. Click **Launch Run** to start the job with that config.
+
+For **sec_bigquery_load_job** you do not need run config (it uses data already in GCS from a previous run).
 
 #### Via CLI
 ```bash
-# Run complete pipeline for specific year
-uv run --with dagster dagster job execute --job sec_pipeline_job --config '{"ops": {"sec_raw_data": {"config": {"year": 2023, "quarters": ["q1"]}}}}'
+# Run complete pipeline (include config for all five assets; see Configuration Examples below)
+uv run --with dagster dagster job execute --job sec_pipeline_job --config '{"ops": {"sec_raw_data": {"config": {"year": 2023, "quarters": ["q1"]}}, "sec_gcs_data": {"config": {"year": 2023, "quarters": ["q1"], "bucket_name": "dsai-m2-bucket", "keep_local": false}}, "meltano_staging_data": {"config": {"year": 2023, "quarters": ["q1"], "bucket_name": "dsai-m2-bucket"}}, "bigquery_sec_data": {"config": {"year": 2023, "quarters": ["q1"]}}, "sec_pipeline_summary": {"config": {"year": 2023, "quarters": ["q1"]}}}}'
 
 # Run download only
 uv run --with dagster dagster job execute --job sec_download_job --config '{"ops": {"sec_raw_data": {"config": {"year": 2023, "quarters": ["q1"]}}}}'
@@ -99,7 +174,13 @@ uv run --with dagster dagster job execute --job sec_download_job --config '{"ops
 
 ### Configuration Examples
 
-#### Single Quarter Load
+Run config is passed under `ops.<asset_key>.config`. All assets that accept config need it in the same run (no data is passed between steps via the I/O manager).
+
+**sec_download_job** (download + GCS only): provide `sec_raw_data` and optionally `sec_gcs_data` config.
+
+**sec_pipeline_job** (full pipeline): provide config for all five assets (`sec_raw_data`, `sec_gcs_data`, `meltano_staging_data`, `bigquery_sec_data`, `sec_pipeline_summary`) with the same year/quarters.
+
+#### Single Quarter Load (sec_download_job or minimal sec_pipeline_job)
 ```yaml
 ops:
   sec_raw_data:
@@ -114,20 +195,36 @@ ops:
       keep_local: false
 ```
 
-#### Full Year Load
+#### Full Pipeline (sec_pipeline_job) – single quarter
 ```yaml
 ops:
   sec_raw_data:
     config:
       year: 2023
-      quarters: ["q1", "q2", "q3", "q4"]
+      quarters: ["q1"]
   sec_gcs_data:
     config:
       year: 2023
-      quarters: ["q1", "q2", "q3", "q4"]
+      quarters: ["q1"]
       bucket_name: "dsai-m2-bucket"
       keep_local: false
+  meltano_staging_data:
+    config:
+      year: 2023
+      quarters: ["q1"]
+      bucket_name: "dsai-m2-bucket"
+  bigquery_sec_data:
+    config:
+      year: 2023
+      quarters: ["q1"]
+  sec_pipeline_summary:
+    config:
+      year: 2023
+      quarters: ["q1"]
 ```
+
+#### Full Year Load
+Use `quarters: ["q1", "q2", "q3", "q4"]` (or omit quarters) for each asset in the full-pipeline example above.
 
 ## Environment Variables
 
@@ -203,7 +300,7 @@ CMD ["dagster", "dev", "--host", "0.0.0.0", "--port", "3000"]
 
 #### Import Errors
 ```bash
-# If you get import errors, ensure the dagster_pipeline directory is in Python path
+# If you get import errors, ensure the dagster_orchestration directory is in Python path
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 ```
 
@@ -216,7 +313,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 #### Meltano Integration
 ```bash
 # Ensure Meltano plugins are installed
-cd meltano-ingestion
+cd dataprocessing/meltano_ingestion
 meltano install
 ```
 

@@ -1,0 +1,65 @@
+version: 2
+
+sources:
+  - name: insider_transactions
+    database: ntu-dsai-488112
+    schema: insider_transactions
+    tables:
+      - name: sec_submission
+        description: "SEC submission fact table with ACCESSION_NUMBER as primary key"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Primary key for submission"
+            tests:
+              - unique
+              - not_null
+
+      - name: sec_reportingowner
+        description: "SEC reporting owner dimension table"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: RPTOWNERCIK
+            description: "Reporting owner CIK"
+            tests:
+              - not_null
+
+      - name: sec_nonderiv_trans
+        description: "SEC non-derivative transaction dimension table"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: NONDERIV_TRANS_SK
+            description: "Non-derivative transaction surrogate key"
+            tests:
+              - not_null
+
+      - name: sec_nonderiv_holding
+        description: "SEC non-derivative holding dimension table"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: NONDERIV_HOLDING_SK
+            description: "Non-derivative holding surrogate key"
+            tests:
+              - not_null
+
+      - name: sec_deriv_trans
+        description: "SEC derivative transaction dimension table"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: DERIV_TRANS_SK
+            description: "Derivative transaction surrogate key"
+            tests:
+              - not_null
+
+      - name: sec_deriv_holding
+        description: "SEC derivative holding dimension table"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: DERIV_HOLDING_SK
+            description: "Derivative holding surrogate key"
+            tests:
+              - not_null

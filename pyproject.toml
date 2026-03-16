@@ -12,6 +12,7 @@ dependencies = [
     "google-cloud-storage>=2.10.0",
     "google-api-core>=2.11.0",
     "python-dotenv>=1.0.0",
+    "dagster-dbt>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,14 @@ dagster = [
     "dagster-gcp>=0.28.0",
     "dagster-postgres>=0.28.0",
     "dagster-webserver>=1.12.0",
+    "dagster-dbt>=0.23.0",
+]
+dbt = [
+    "dbt-core>=1.7.0",
+    "dbt-bigquery>=1.7.0",
+]
+dbt-core = [
+    "dbt-bigquery>=1.10.2",
 ]
 
 [dependency-groups]
@@ -55,4 +64,4 @@ warn_unused_configs = true
 disallow_untyped_defs = true
 
 [tool.dagster]
-module_name = "dagster_pipeline.repository"
+module_name = "dataprocessing.dagster_orchestration.repository"

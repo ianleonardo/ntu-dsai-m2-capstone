@@ -23,7 +23,7 @@ from pathlib import Path
 VALID_QUARTERS = ("q1", "q2", "q3", "q4")
 ALL_QUARTERS = list(VALID_QUARTERS)
 
-# Load .env from repo root when run from meltano-ingestion
+# Load .env from repo root when run from meltano_ingestion
 _repo_root = Path(__file__).resolve().parent.parent
 _dotenv = _repo_root / ".env"
 if _dotenv.exists():
@@ -145,7 +145,7 @@ def main():
     prefix = os.getenv("GCS_SEC_PREFIX", "sec-data")
     staging_dir = os.getenv("STAGING_DIR", "staging")
 
-    # Staging dir relative to cwd (meltano-ingestion when run via Meltano)
+    # Staging dir relative to cwd (meltano_ingestion when run via Meltano)
     staging_path = Path(staging_dir).resolve()
     quarters_desc = ", ".join(quarters) if len(quarters) == 4 else quarters[0]
     print(f"Syncing year {year} quarters [{quarters_desc}] from gs://{bucket_name}/{prefix}/ to {staging_path}")
