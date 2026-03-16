@@ -211,7 +211,3 @@ __marimo__/
 # Dagster storage
 .dagster/
 .tmp_dagster_home_*
-
-# DBT
-dbt_packages/
-logs/
