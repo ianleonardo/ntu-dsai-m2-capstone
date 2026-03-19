@@ -5,13 +5,14 @@ Dagster assets for dbt integration with SEC insider transactions transformation.
 import os
 from pathlib import Path
 from dagster import AssetExecutionContext, asset
-from dagster_dbt import DbtCliResource, dbt_assets
+from dagster_dbt import DbtCliResource
 
-# Get the dbt project directory
-DBT_PROJECT_DIR = Path(__file__).parent.parent.parent / "dataprocessing" / "dbt_insider_transactions"
+# Resolve repo root and dbt project directory
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DBT_PROJECT_DIR = REPO_ROOT / "dataprocessing" / "dbt_insider_transactions"
 
 @asset(
-    group_key="dbt_transformation",
+    group_name="dbt_transformation",
     description="Runs dbt transformations for SEC insider transactions"
 )
 def dbt_insider_transformation(context: AssetExecutionContext) -> None:
@@ -25,26 +26,16 @@ def dbt_insider_transformation(context: AssetExecutionContext) -> None:
     )
     
     # Run dbt run to execute all models
-    result = dbt_cli.cli(["run"]).wait()
+    invocation = dbt_cli.cli(["run"]).wait()
     
-    if result.exit_code != 0:
-        context.log.error(f"dbt run failed with exit code {result.exit_code}")
-        context.log.error(f"stdout: {result.stdout}")
-        context.log.error(f"stderr: {result.stderr}")
-        raise Exception("dbt run failed")
+    if not invocation.is_successful():
+        err = invocation.get_error()
+        context.log.error(f"dbt run failed: {err}")
+        raise RuntimeError(f"dbt run failed: {err}")
     
     context.log.info("dbt transformations completed successfully")
-    context.log.info(f"Processed {result.num_success} models successfully")
 
 
-@dbt_assets(
-    manifest=DBT_PROJECT_DIR / "target" / "manifest.json",
-    project_dir=os.fspath(DBT_PROJECT_DIR),
-    profiles_dir=os.fspath(DBT_PROJECT_DIR),
-)
-def dbt_insider_assets(context: AssetExecutionContext, dbt: DbtCliResource):
-    """
-    dbt assets for SEC insider transactions transformation.
-    This creates individual assets for each dbt model.
-    """
-    yield from dbt.cli(["run"]).stream()
+# If you later want fine-grained dbt asset integration (one asset per dbt model),
+# you can reintroduce dbt_dbt's `@dbt_assets` integration here using the
+# signature that matches your installed dagster-dbt version.

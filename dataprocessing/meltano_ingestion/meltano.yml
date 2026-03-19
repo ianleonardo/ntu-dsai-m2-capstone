@@ -50,6 +50,19 @@ plugins:
       primary_keys: ["ticker"]
       encoding: utf-8
 
+  - name: tap-jsonl-sp500
+    namespace: tap_jsonl
+    pip_url: tap-jsonl
+    executable: tap-jsonl
+    capabilities:
+      - discover
+      - catalog
+    config:
+      path: staging/sp500_companies.jsonl
+      stream_name: SP500_COMPANIES
+      primary_keys: ["symbol"]
+      encoding: utf-8
+
   loaders:
   - name: target-bigquery
     variant: z3z1ma
@@ -75,5 +88,8 @@ jobs:
   - name: load-sec-tickers
     tasks:
       - tap-jsonl target-bigquery
+  - name: load-sp500-companies
+    tasks:
+      - tap-jsonl-sp500 target-bigquery
 
 project_id: 09eda458-11f8-4143-b6f6-105670ea9e19
