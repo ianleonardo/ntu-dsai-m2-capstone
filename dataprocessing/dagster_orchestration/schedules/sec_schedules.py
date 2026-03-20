@@ -7,7 +7,8 @@ from typing import List, Optional
 
 from dagster import ScheduleDefinition, RunRequest, DefaultScheduleStatus, build_schedule_context
 
-from ..jobs.sec_pipeline import sec_pipeline_job, sec_download_job, sec_bigquery_load_job
+from ..jobs.sec_pipeline_direct import sec_direct_pipeline_job
+from ..jobs.sec_pipeline_with_dbt import dbt_transformation_job
 
 
 def get_current_quarter() -> str:
@@ -56,7 +57,7 @@ def get_quarter_start_date(quarter: str, year: int) -> datetime:
 quarterly_sec_schedule = ScheduleDefinition(
     name="quarterly_sec_schedule",
     cron_schedule="0 2 1 */3 *",  # At 2:00 AM on the first day of every quarter (Jan, Apr, Jul, Oct)
-    job=sec_pipeline_job,
+    job=sec_direct_pipeline_job,
     default_status=DefaultScheduleStatus.RUNNING,
     description="Runs SEC data pipeline at the start of each quarter for the previous quarter's data",
     execution_timezone="UTC",
@@ -71,29 +72,12 @@ def quarterly_sec_schedule_context():
         run_key=f"quarterly_sec_{prev_year}_{prev_quarter}",
         run_config={
             "ops": {
-                "sec_raw_data": {
-                    "config": {
-                        "year": prev_year,
-                        "quarters": [prev_quarter],
-                    }
+                "sec_direct_ingestion": {
+                    "config": {"year": prev_year, "quarters": [prev_quarter]},
                 },
-                "sec_gcs_data": {
-                    "config": {
-                        "year": prev_year,
-                        "quarters": [prev_quarter],
-                        "bucket_name": "dsai-m2-bucket",
-                        "keep_local": False,
-                    }
+                "sec_direct_pipeline_summary": {
+                    "config": {"year": prev_year, "quarters": [prev_quarter]},
                 },
-                "meltano_staging_data": {
-                    "config": {
-                        "year": prev_year,
-                        "quarters": [prev_quarter],
-                        "bucket_name": "dsai-m2-bucket",
-                    }
-                },
-                "bigquery_sec_data": {"config": {"year": prev_year, "quarters": [prev_quarter]}},
-                "sec_pipeline_summary": {"config": {"year": prev_year, "quarters": [prev_quarter]}},
             }
         },
         tags={"source": "schedule", "type": "quarterly"},
@@ -103,7 +87,7 @@ def quarterly_sec_schedule_context():
 # Monthly validation schedule
 monthly_validation_schedule = ScheduleDefinition(
     name="monthly_validation_schedule",
-    job=sec_bigquery_load_job,
+    job=dbt_transformation_job,
     cron_schedule="0 8 1 * *",  # 8 AM on the 1st of every month
     default_status=DefaultScheduleStatus.STOPPED,
     description="Monthly validation of SEC data pipeline and data quality checks",
@@ -119,13 +103,7 @@ def monthly_validation_schedule_context():
     return RunRequest(
         run_key=f"monthly_validation_{now.strftime('%Y_%m')}",
         run_config={
-            "ops": {
-                "meltano_staging_data": {
-                    "config": {"year": prev_year, "quarters": [prev_quarter], "bucket_name": "dsai-m2-bucket"}
-                },
-                "bigquery_sec_data": {"config": {"year": prev_year, "quarters": [prev_quarter]}},
-                "sec_pipeline_summary": {"config": {"year": prev_year, "quarters": [prev_quarter]}},
-            }
+            "ops": {}
         },
         tags={"source": "schedule", "type": "validation"},
     )
@@ -134,7 +112,7 @@ def monthly_validation_schedule_context():
 # Weekly health check schedule
 weekly_health_check_schedule = ScheduleDefinition(
     name="weekly_health_check_schedule",
-    job=sec_download_job,
+    job=sec_direct_pipeline_job,
     cron_schedule="0 7 * * 1",  # 7 AM every Monday
     default_status=DefaultScheduleStatus.STOPPED,
     description="Weekly health check of SEC data availability and pipeline components",
@@ -154,19 +132,11 @@ def weekly_health_check_schedule_context():
         run_key=f"weekly_health_check_{now.strftime('%Y_%m_%d')}",
         run_config={
             "ops": {
-                "sec_raw_data": {
-                    "config": {
-                        "year": test_year,
-                        "quarters": [test_quarter],
-                    }
+                "sec_direct_ingestion": {
+                    "config": {"year": test_year, "quarters": [test_quarter]},
                 },
-                "sec_gcs_data": {
-                    "config": {
-                        "year": test_year,
-                        "quarters": [test_quarter],
-                        "bucket_name": "dsai-m2-bucket",
-                        "keep_local": True,  # Keep local data for debugging
-                    }
+                "sec_direct_pipeline_summary": {
+                    "config": {"year": test_year, "quarters": [test_quarter]},
                 },
             }
         },
@@ -177,7 +147,7 @@ def weekly_health_check_schedule_context():
 # Year-end complete load schedule
 year_end_schedule = ScheduleDefinition(
     name="year_end_schedule",
-    job=sec_pipeline_job,
+    job=sec_direct_pipeline_job,
     cron_schedule="0 6 1 1 *",  # 6 AM on January 1st
     default_status=DefaultScheduleStatus.STOPPED,
     description="Year-end complete load of all quarters for the previous year",
@@ -194,25 +164,12 @@ def year_end_schedule_context():
         run_key=f"year_end_complete_{prev_year}",
         run_config={
             "ops": {
-                "sec_raw_data": {
-                    "config": {
-                        "year": prev_year,
-                        "quarters": all_quarters,
-                    }
+                "sec_direct_ingestion": {
+                    "config": {"year": prev_year, "quarters": all_quarters},
                 },
-                "sec_gcs_data": {
-                    "config": {
-                        "year": prev_year,
-                        "quarters": all_quarters,
-                        "bucket_name": "dsai-m2-bucket",
-                        "keep_local": False,
-                    }
+                "sec_direct_pipeline_summary": {
+                    "config": {"year": prev_year, "quarters": all_quarters},
                 },
-                "meltano_staging_data": {
-                    "config": {"year": prev_year, "quarters": all_quarters, "bucket_name": "dsai-m2-bucket"}
-                },
-                "bigquery_sec_data": {"config": {"year": prev_year, "quarters": all_quarters}},
-                "sec_pipeline_summary": {"config": {"year": prev_year, "quarters": all_quarters}},
             }
         },
         tags={"source": "schedule", "type": "year_end"},
@@ -246,25 +203,12 @@ def create_custom_schedule(
             run_key=f"{name}_{datetime.now().strftime('%Y_%m_%d_%H_%M')}",
             run_config={
                 "ops": {
-                    "sec_raw_data": {
-                        "config": {
-                            "year": year,
-                            "quarters": quarters,
-                        }
+                    "sec_direct_ingestion": {
+                        "config": {"year": year, "quarters": quarters},
                     },
-                    "sec_gcs_data": {
-                        "config": {
-                            "year": year,
-                            "quarters": quarters,
-                            "bucket_name": "dsai-m2-bucket",
-                            "keep_local": False,
-                        }
+                    "sec_direct_pipeline_summary": {
+                        "config": {"year": year, "quarters": quarters},
                     },
-                    "meltano_staging_data": {
-                        "config": {"year": year, "quarters": quarters, "bucket_name": "dsai-m2-bucket"}
-                    },
-                    "bigquery_sec_data": {"config": {"year": year, "quarters": quarters}},
-                    "sec_pipeline_summary": {"config": {"year": year, "quarters": quarters}},
                 }
             },
             tags={"source": "schedule", "type": "custom"},
@@ -272,7 +216,7 @@ def create_custom_schedule(
     
     return ScheduleDefinition(
         name=name,
-        job=sec_pipeline_job,
+        job=sec_direct_pipeline_job,
         cron_schedule=cron_expression,
         default_status=DefaultScheduleStatus.STOPPED,
         description=description,
@@ -304,25 +248,12 @@ def create_backfill_schedule(years: List[int]) -> ScheduleDefinition:
                         run_key=f"backfill_{year}_{quarter}",
                         run_config={
                             "ops": {
-                                "sec_raw_data": {
-                                    "config": {
-                                        "year": year,
-                                        "quarters": [quarter],
-                                    }
+                                "sec_direct_ingestion": {
+                                    "config": {"year": year, "quarters": [quarter]},
                                 },
-                                "sec_gcs_data": {
-                                    "config": {
-                                        "year": year,
-                                        "quarters": [quarter],
-                                        "bucket_name": "dsai-m2-bucket",
-                                        "keep_local": False,
-                                    }
+                                "sec_direct_pipeline_summary": {
+                                    "config": {"year": year, "quarters": [quarter]},
                                 },
-                                "meltano_staging_data": {
-                                    "config": {"year": year, "quarters": [quarter], "bucket_name": "dsai-m2-bucket"}
-                                },
-                                "bigquery_sec_data": {"config": {"year": year, "quarters": [quarter]}},
-                                "sec_pipeline_summary": {"config": {"year": year, "quarters": [quarter]}},
                             }
                         },
                         tags={"source": "schedule", "type": "backfill"},
@@ -332,7 +263,7 @@ def create_backfill_schedule(years: List[int]) -> ScheduleDefinition:
     
     return ScheduleDefinition(
         name="backfill_schedule",
-        job=sec_pipeline_job,
+        job=sec_direct_pipeline_job,
         cron_schedule="0 2 1 1 *",  # Run once on January 1st at 2 AM
         default_status=DefaultScheduleStatus.STOPPED,
         description="One-time backfill of historical SEC data",

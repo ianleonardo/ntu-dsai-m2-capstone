@@ -8,13 +8,11 @@ the SEC data pipeline with Dagster.
 from dagster import Definitions, ScheduleDefinition, repository
 
 # Import assets (relative imports inside package)
-from .assets.sec_download import sec_raw_data, sec_gcs_data
-from .assets.meltano_integration import (
-    meltano_staging_data,
-    bigquery_sec_data,
-    sec_pipeline_summary,
-)
 from .assets.dbt_integration import dbt_insider_transformation
+
+# Import simplified SEC direct ingestion assets (no GCS)
+from .assets.sec_direct_ingestion import sec_direct_ingestion
+from .assets.sec_direct_pipeline_summary import sec_direct_pipeline_summary
 
 # Import assets for SP500 daily stock pipeline
 from .assets.sp500_stock_daily_integration import (
@@ -24,14 +22,14 @@ from .assets.sp500_stock_daily_integration import (
 )
 
 # Import jobs
-from .jobs.sec_pipeline import (
-    sec_pipeline_job,
-    sec_download_job,
-    sec_bigquery_load_job,
-)
 from .jobs.sec_pipeline_with_dbt import (
-    sec_pipeline_with_dbt_job,
     dbt_transformation_job,
+)
+
+# Import simplified SEC direct ingestion jobs
+from .jobs.sec_pipeline_direct import (
+    sec_direct_pipeline_job,
+    sec_pipeline_direct_complete_job,
 )
 
 # Import jobs for SP500 daily stock pipeline
@@ -58,23 +56,22 @@ def sec_data_repository():
     """
     return [
         # Assets
-        sec_raw_data,
-        sec_gcs_data,
-        meltano_staging_data,
-        bigquery_sec_data,
-        sec_pipeline_summary,
         dbt_insider_transformation,
+        
+        # Simplified SEC direct ingestion assets (no GCS)
+        sec_direct_ingestion,
+        sec_direct_pipeline_summary,
 
         sp500_stock_daily_staging_data,
         bigquery_sp500_stock_daily_data,
         sp500_stock_daily_pipeline_summary,
         
         # Jobs
-        sec_pipeline_job,
-        sec_download_job,
-        sec_bigquery_load_job,
-        sec_pipeline_with_dbt_job,
         dbt_transformation_job,
+
+        # Simplified SEC direct ingestion jobs (no GCS)
+        sec_direct_pipeline_job,
+        sec_pipeline_direct_complete_job,
 
         sp500_stock_daily_pipeline_job,
         
@@ -91,19 +88,14 @@ def create_simple_repository():
     """Create a simple repository for initial testing."""
     return Definitions(
         assets=[
-            sec_raw_data,
-            sec_gcs_data,
-            meltano_staging_data,
-            bigquery_sec_data,
-            sec_pipeline_summary,
             dbt_insider_transformation,
+            sec_direct_ingestion,
+            sec_direct_pipeline_summary,
         ],
         jobs=[
-            sec_pipeline_job,
-            sec_download_job,
-            sec_bigquery_load_job,
-            sec_pipeline_with_dbt_job,
             dbt_transformation_job,
+            sec_direct_pipeline_job,
+            sec_pipeline_direct_complete_job,
         ],
     )
 
@@ -111,23 +103,18 @@ def create_simple_repository():
 # Top-level definitions for Dagster CLI (loads when using [tool.dagster] module_name)
 definitions = Definitions(
     assets=[
-        sec_raw_data,
-        sec_gcs_data,
-        meltano_staging_data,
-        bigquery_sec_data,
-        sec_pipeline_summary,
         dbt_insider_transformation,
+        sec_direct_ingestion,
+        sec_direct_pipeline_summary,
 
         sp500_stock_daily_staging_data,
         bigquery_sp500_stock_daily_data,
         sp500_stock_daily_pipeline_summary,
     ],
     jobs=[
-        sec_pipeline_job,
-        sec_download_job,
-        sec_bigquery_load_job,
-        sec_pipeline_with_dbt_job,
         dbt_transformation_job,
+        sec_direct_pipeline_job,
+        sec_pipeline_direct_complete_job,
 
         sp500_stock_daily_pipeline_job,
     ],
