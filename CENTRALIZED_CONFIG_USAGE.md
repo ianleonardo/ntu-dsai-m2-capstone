@@ -23,7 +23,7 @@ This module provides:
 - Validation and helper methods
 
 ### 2. Environment Configuration
-**File**: `.env.centralized`
+**File**: `.env`
 
 **Core Parameters** (control all assets):
 ```bash
@@ -41,7 +41,7 @@ DRY_RUN=false
 All assets automatically use centralized configuration:
 
 ```bash
-# Set year and dataset in .env.centralized
+# Set year and dataset in .env
 SEC_YEAR=2024
 BIGQUERY_DATASET=insider_transactions
 
@@ -126,9 +126,6 @@ def my_asset(context: AssetExecutionContext, config: MyAssetConfig):
 
 ### 1. Configure Environment
 ```bash
-# Copy centralized environment template
-cp .env.centralized .env
-
 # Edit parameters as needed
 nano .env
 ```

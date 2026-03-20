@@ -69,8 +69,6 @@ enhanced AS (
         UNDERLYING_SECURITY_TITLE,
         UNDERLYING_SECURITY_SHARES,
         UNDERLYING_SECURITY_VALUE,
-        -- Generate a consistent hash key for security
-        {{ dbt_utils.generate_surrogate_key(['SECURITY_TITLE', 'security_type']) }} as security_key
     FROM all_securities
     WHERE SECURITY_TITLE IS NOT NULL
 )

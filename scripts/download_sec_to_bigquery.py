@@ -24,6 +24,7 @@ import zipfile
 import io
 import os
 import time
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
@@ -116,33 +117,66 @@ class SECBigQueryLoader:
         for row in rows:
             row['year'] = year
         
-        try:
-            # Configure retry strategy
-            retry_strategy = retry.Retry(
-                initial=1.0,
-                maximum=60.0,
-                multiplier=2.0,
-                deadline=300.0
-            )
-            
-            # Stream insert in batches
-            for i in range(0, len(rows), self.batch_size):
-                batch = rows[i:i + self.batch_size]
+        # Configure retry strategy
+        retry_strategy = retry.Retry(
+            initial=1.0,
+            maximum=60.0,
+            multiplier=2.0,
+            deadline=300.0,
+        )
+
+        def _insert_batch(batch: List[Dict]) -> bool:
+            """Insert batch and recursively split on oversized requests (HTTP 413)."""
+            if not batch:
+                return True
+            try:
                 errors = self.client.insert_rows_json(table_id, batch, retry=retry_strategy)
-                
-                if errors:
-                    print(f"Errors inserting batch to {table_name}: {errors}")
-                    return False
-                    
-            print(f"Successfully inserted {len(rows)} rows to {table_id}")
+            except GoogleAPICallError as e:
+                # BigQuery insertAll can fail with 413 if payload is too large.
+                msg = str(e)
+                if "413" in msg and len(batch) > 1:
+                    mid = len(batch) // 2
+                    return _insert_batch(batch[:mid]) and _insert_batch(batch[mid:])
+                print(f"BigQuery API error for {table_name}: {e}")
+                return False
+            except Exception as e:
+                msg = str(e)
+                if "413" in msg and len(batch) > 1:
+                    mid = len(batch) // 2
+                    return _insert_batch(batch[:mid]) and _insert_batch(batch[mid:])
+                print(f"Unexpected error inserting to {table_name}: {e}")
+                return False
+
+            if errors:
+                print(f"Errors inserting batch to {table_name}: {errors}")
+                return False
             return True
-            
-        except GoogleAPICallError as e:
-            print(f"BigQuery API error for {table_name}: {e}")
-            return False
-        except Exception as e:
-            print(f"Unexpected error inserting to {table_name}: {e}")
-            return False
+
+        # Build conservative request-sized chunks (both row-count and JSON bytes).
+        # Keeping this below the API limit prevents most 413 failures.
+        max_request_bytes = 8 * 1024 * 1024  # 8 MB safety cap
+        start = 0
+        while start < len(rows):
+            end = min(start + self.batch_size, len(rows))
+            payload_bytes = 0
+            batch = []
+            i = start
+            while i < end:
+                row = rows[i]
+                row_size = len(json.dumps(row, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+                # keep at least 1 row in batch
+                if batch and payload_bytes + row_size > max_request_bytes:
+                    break
+                batch.append(row)
+                payload_bytes += row_size
+                i += 1
+
+            if not _insert_batch(batch):
+                return False
+            start = i
+
+        print(f"Successfully inserted {len(rows)} rows to {table_id}")
+        return True
     
     def process_table_data(self, table_name: str, tsv_content: str, year: int) -> bool:
         """Process TSV content and stream to BigQuery."""
@@ -229,8 +263,23 @@ def main():
     )
     parser.add_argument(
         "year",
+        nargs="?",
         type=int,
-        help="Year for which to download SEC data (e.g., 2024)",
+        help="Year for which to download SEC data (e.g., 2024). Optional if you use --from-year/--to-year.",
+    )
+    parser.add_argument(
+        "--from-year",
+        dest="from_year",
+        type=int,
+        default=None,
+        help="Start year for backfill (inclusive).",
+    )
+    parser.add_argument(
+        "--to-year",
+        dest="to_year",
+        type=int,
+        default=None,
+        help="End year for backfill (inclusive).",
     )
     parser.add_argument(
         "--quarter",
@@ -257,11 +306,23 @@ def main():
     )
     args = parser.parse_args()
 
-    # Validate year
+    # Resolve year(s) to process
     current_year = datetime.now().year
-    if args.year < 2006 or args.year > current_year:
-        print(f"Error: Year must be between 2006 and {current_year}")
+    if args.from_year is not None and args.to_year is not None:
+        if args.from_year > args.to_year:
+            print("Error: --from-year must be <= --to-year", file=sys.stderr)
+            sys.exit(1)
+        years_to_process = list(range(args.from_year, args.to_year + 1))
+    elif args.year is not None:
+        years_to_process = [args.year]
+    else:
+        print("Error: Provide either positional `year` or both `--from-year` and `--to-year`.", file=sys.stderr)
         sys.exit(1)
+
+    for y in years_to_process:
+        if y < 2006 or y > current_year:
+            print(f"Error: Year must be between 2006 and {current_year}. Got: {y}", file=sys.stderr)
+            sys.exit(1)
 
     # Validate quarter
     try:
@@ -277,7 +338,7 @@ def main():
         sys.exit(1)
 
     quarters_desc = ", ".join(quarters) if len(quarters) == 4 else quarters[0]
-    print(f"SEC Direct Pipeline: Loading {args.year} quarters [{quarters_desc}] to BigQuery")
+    print(f"SEC Direct Pipeline: Loading years {years_to_process[0]} -> {years_to_process[-1]} quarters [{quarters_desc}] to BigQuery")
     print(f"Project: {project_id}, Dataset: {args.dataset}")
 
     # Initialize BigQuery loader
@@ -288,45 +349,42 @@ def main():
     if not args.dry_run:
         loader.ensure_dataset_exists()
 
-    # Download SEC data
-    print("=== Downloading SEC data ===")
-    downloaded_data = download_sec_data(args.year, quarters)
-    
-    if not downloaded_data:
-        print("Error: No data downloaded")
-        sys.exit(1)
-
-    # Process and load data
-    print("=== Processing and loading data ===")
     success = True
-    
-    for table in SEC_TABLES:
-        if table not in downloaded_data:
-            print(f"Warning: No data for {table}")
-            continue
-            
-        # Combine data from all quarters
-        combined_tsv = "\n".join(downloaded_data[table])
-        
-        # Get table configuration
-        table_config = TABLE_CONFIGS.get(table, {})
-        table_id = table_config.get("table_id", table.lower())
-        
-        print(f"Processing {table} ({len(downloaded_data[table])} quarters)...")
-        
-        if args.dry_run:
-            print(f"DRY RUN: Would load {combined_tsv.count(chr(10))} rows to {table_id}")
-        else:
-            if not loader.process_table_data(table_id, combined_tsv, args.year):
-                success = False
-                print(f"Failed to load {table}")
+
+    for year in years_to_process:
+        print(f"=== Downloading SEC data for year {year} ===")
+        downloaded_data = download_sec_data(year, quarters)
+
+        if not downloaded_data:
+            print(f"Error: No data downloaded for year {year}", file=sys.stderr)
+            sys.exit(1)
+
+        print(f"=== Processing and loading data for year {year} ===")
+        for table in SEC_TABLES:
+            if table not in downloaded_data:
+                print(f"Warning: No data for {table} (year {year})")
+                continue
+                
+            combined_tsv = "\n".join(downloaded_data[table])
+
+            table_config = TABLE_CONFIGS.get(table, {})
+            table_id = table_config.get("table_id", table.lower())
+
+            print(f"Processing {table} ({len(downloaded_data[table])} quarters, year {year})...")
+
+            if args.dry_run:
+                print(f"DRY RUN: Would load {combined_tsv.count(chr(10))} rows to {table_id}")
             else:
-                print(f"Successfully loaded {table}")
+                if not loader.process_table_data(table_id, combined_tsv, year):
+                    success = False
+                    print(f"Failed to load {table} (year {year})", file=sys.stderr)
+                else:
+                    print(f"Successfully loaded {table} (year {year})")
 
     if success:
-        print(f"✅ SEC data pipeline completed successfully for {args.year}")
+        print(f"✅ SEC data pipeline completed successfully for years {years_to_process[0]} -> {years_to_process[-1]}")
     else:
-        print(f"❌ SEC data pipeline completed with errors for {args.year}")
+        print(f"❌ SEC data pipeline completed with errors for years {years_to_process[0]} -> {years_to_process[-1]}")
         sys.exit(1)
 
 

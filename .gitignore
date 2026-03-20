@@ -221,3 +221,5 @@ dataprocessing/meltano_ingestion/staging/
 # dbt packages (vendored deps via dbt deps)
 dataprocessing/dbt_insider_transactions/dbt_packages/
 
+
+.bruin.yml

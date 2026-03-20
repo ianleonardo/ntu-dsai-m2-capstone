@@ -13,7 +13,8 @@ DBT_PROJECT_DIR = REPO_ROOT / "dataprocessing" / "dbt_insider_transactions"
 
 @asset(
     group_name="dbt_transformation",
-    description="Runs dbt transformations for SEC insider transactions"
+    description="Runs dbt transformations for SEC insider transactions",
+    deps=["sec_direct_ingestion"],
 )
 def dbt_insider_transformation(context: AssetExecutionContext) -> None:
     """

@@ -18,10 +18,6 @@ models:
   - name: dim_security
     description: "Dimension table for securities and instruments"
     columns:
-      - name: security_key
-        description: "Surrogate key for security"
-        tests:
-          - not_null
       - name: SECURITY_TITLE
         description: "Title of the security"
       - name: security_type
@@ -47,8 +43,6 @@ models:
         description: "Quarter component"
       - name: month
         description: "Month component"
-      - name: is_weekend
-        description: "Flag indicating if date is weekend"
 
   - name: dim_transaction_type
     description: "Dimension table for transaction types"
