@@ -208,6 +208,8 @@ __marimo__/
 
 .DS_Store
 
+data/
+
 # Dagster storage
 .dagster/
 .tmp_dagster_home_*

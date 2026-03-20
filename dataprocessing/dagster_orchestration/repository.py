@@ -16,6 +16,13 @@ from .assets.meltano_integration import (
 )
 from .assets.dbt_integration import dbt_insider_transformation
 
+# Import assets for SP500 daily stock pipeline
+from .assets.sp500_stock_daily_integration import (
+    sp500_stock_daily_staging_data,
+    bigquery_sp500_stock_daily_data,
+    sp500_stock_daily_pipeline_summary,
+)
+
 # Import jobs
 from .jobs.sec_pipeline import (
     sec_pipeline_job,
@@ -26,6 +33,9 @@ from .jobs.sec_pipeline_with_dbt import (
     sec_pipeline_with_dbt_job,
     dbt_transformation_job,
 )
+
+# Import jobs for SP500 daily stock pipeline
+from .jobs.sp500_stock_daily_pipeline import sp500_stock_daily_pipeline_job
 
 # Import schedules
 from .schedules.sec_schedules import (
@@ -54,6 +64,10 @@ def sec_data_repository():
         bigquery_sec_data,
         sec_pipeline_summary,
         dbt_insider_transformation,
+
+        sp500_stock_daily_staging_data,
+        bigquery_sp500_stock_daily_data,
+        sp500_stock_daily_pipeline_summary,
         
         # Jobs
         sec_pipeline_job,
@@ -61,6 +75,8 @@ def sec_data_repository():
         sec_bigquery_load_job,
         sec_pipeline_with_dbt_job,
         dbt_transformation_job,
+
+        sp500_stock_daily_pipeline_job,
         
         # Schedules
         quarterly_sec_schedule,
@@ -101,6 +117,10 @@ definitions = Definitions(
         bigquery_sec_data,
         sec_pipeline_summary,
         dbt_insider_transformation,
+
+        sp500_stock_daily_staging_data,
+        bigquery_sp500_stock_daily_data,
+        sp500_stock_daily_pipeline_summary,
     ],
     jobs=[
         sec_pipeline_job,
@@ -108,6 +128,8 @@ definitions = Definitions(
         sec_bigquery_load_job,
         sec_pipeline_with_dbt_job,
         dbt_transformation_job,
+
+        sp500_stock_daily_pipeline_job,
     ],
     schedules=[
         quarterly_sec_schedule,
