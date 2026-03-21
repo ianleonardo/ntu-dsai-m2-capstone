@@ -2,64 +2,58 @@
 ## Stock Analytics Data Pipeline
 
 ### Project Overview
-This project is a bespoke Stock Price Monitor designed to ingest, process, and store financial market data and insider trading information. Built as part of the NTU DSAI Module 2 Capstone, it automates the extraction of stock data and SEC insider transactions, loading them into Google BigQuery for downstream technical analysis and visualization.
+This project is a robust Stock Analytics Data Pipeline designed to ingest, process, and store financial market data and SEC insider trading information. Built as part of the NTU DSAI Module 2 Capstone, it automates the end-to-end flow from raw data extraction to analytics-ready models in Google BigQuery.
+
+### Data Processing Flow
+
+The pipeline follows a modern ELT (Extract, Load, Transform) architecture, orchestrated by Dagster:
+
+1.  **Ingestion (Extract & Load)**: We use **Meltano** to extract raw data from local files (CSV/JSONL) and load it into Google BigQuery staging tables.
+2.  **Transformation (Transform)**: **dbt (data build tool)** handles the data cleaning, deduplication, and modeling within BigQuery, transforming raw staging data into structured dimension and fact tables (Marts).
+3.  **Orchestration**: **Dagster** coordinates the entire process, managing dependencies between Meltano ingestion and dbt transformations, and providing a monitoring UI.
 
 ### Data Sources
-1. **Finnhub Stock API**: Real-time stock data, company fundamentals, and historical OHLC data.
-2. **Alpha Vantage API**: Supplementary market data and foreign exchange information.
-3. **SEC Form 4 Insider Trading Data**: Quarterly TSV datasets containing insider submissions, transactions, and signatures.
+1.  **SEC Form 4 Insider Trading Data**: Quarterly TSV datasets containing insider submissions, transactions, and signatures.
+2.  **S&P 500 Market Data**: Comprehensive ticker and company profile information for S&P 500 constituents.
 
 ### Project Structure
 ```text
 ntu-dsai-m2-capstone/
-├── data/                  # Local storage for extracted raw data (Finnhub, SEC)
-├── docs/                  # Project documentation and ingestion guides
+├── docs/                  # Project documentation and detailed guidelines
 ├── dataprocessing/
-│   ├── dagster_orchestration/   # Dagster: SEC data pipeline orchestration
-│   └── meltano_ingestion/  # Meltano: SEC insider forms + company tickers → BigQuery
-├── notebooks/             # Jupyter notebooks for data exploration and initial extraction
-├── scripts/               # Python scripts for automated data downloads
-└── README.md              # This project overview
+│   ├── meltano_ingestion/     # Ingestion logic (Meltano)
+│   ├── dbt_insider_transactions/ # Transformation logic (dbt)
+│   └── dagster_orchestration/   # Orchestration logic (Dagster)
+├── data/                  # Local storage for raw data files
+├── notebooks/             # Data exploration notebooks
+├── scripts/               # Helper scripts for data management
+└── README.md              # Project entry point
 ```
 
-### Architecture & Pipeline (Current Stage)
-The project currently implements the **Extract** and **Load** phases of the ELT pipeline:
-- **Data Extraction**: Custom Python scripts (`scripts/download_sec.py`) and Jupyter notebooks (`notebooks/finnhub_downloader.ipynb`) handle downloading data from REST APIs and ZIP archives.
-- **Data Loading (Meltano)**: `dataprocessing/meltano_ingestion` loads SEC insider TSVs from GCS and SEC company tickers JSON into BigQuery via `tap-csv` and `target-bigquery`.
+### Detailed Guidelines
 
-### Setup Instructions
+For detailed instructions on setup and operation, refer to the following documents:
 
-#### 1. Prerequisites
-- Python 3.10+
-- [Meltano](https://docs.meltano.com/)
-- Google Cloud Platform (GCP) account with BigQuery enabled.
+1.  **[Pre-setup Guideline](docs/setup.md)**: Environment setup, `uv` installation, GCP/BigQuery configuration, and environment variables.
+2.  **[Ingestion Guideline](docs/ingestion.md)**: How to run data ingestion jobs using Meltano and provided helper scripts.
+3.  **[dbt Transformation Guideline](docs/dbt.md)**: Running data transformations, understanding the model structure, and overview of data quality tests.
+4.  **[Orchestration Guideline](docs/orchestration.md)**: Orchestrating the entire pipeline with Dagster (CLI and UI).
 
-#### 2. Environment Variables
-Create a `.env` file in the root directory and add the necessary API keys and credentials:
-```env
-FINNHUB_API_KEY=your_finnhub_key
-VANTAGE_API_KEY=your_alpha_vantage_key
-TARGET_BIGQUERY_CREDENTIALS_PATH=/absolute/path/to/gcp-service-account.json
-```
+### Setup Quick Start
 
-#### 3. Running the SEC Ingestion Pipeline
-To ingest the SEC Insider data into BigQuery:
 ```bash
-# 1. Download and extract the SEC TSV data files
-python scripts/download_sec.py
+# 1. Install dependencies
+uv sync
 
-# 2. Navigate to the Meltano project
-cd dataprocessing/meltano_ingestion
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your GCP credentials path
 
-# 3. Install Meltano plugins
-meltano install
-
-# 4. Run the pipeline to BigQuery
-meltano run tap-csv target-bigquery
+# 3. Launch orchestration UI
+uv run dagster dev
 ```
-*(For a more detailed local testing guide using JSONL, refer to `docs/meltano_sec_ingestion_guide.md`).*
 
-### Next Steps / Future Work
-- Implement data transformations (dbt) within BigQuery to create star-schema data marts.
-- Develop a web application to visualize the stock analytics and insider trading signals.
-- Automate technical analysis (e.g., Simple Moving Averages, Support & Resistance levels) utilizing AI/LLM tools.
+### Future Work
+- Expand data sources to include real-time market data.
+- Develop a centralized visualization dashboard for insider trading signals.
+- Integrate AI/LLM tools for automated narrative generation on market trends.
