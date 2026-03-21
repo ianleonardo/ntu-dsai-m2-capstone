@@ -81,3 +81,10 @@ sources:
             description: "Derivative holding surrogate key"
             tests:
               - not_null
+
+      # Meltano: meltano run load-sp500-companies (tap-jsonl-sp500, stream SP500_COMPANIES).
+      # Target table name varies by loader; default assumes lowercase. Override with:
+      #   dbt run --vars '{"sp500_companies_identifier": "YOUR_TABLE_NAME"}'
+      - name: sp500_companies
+        identifier: "{{ var('sp500_companies_identifier', 'sp500_companies') }}"
+        description: "S&P 500 constituents (symbol, CIK, sector) for filtering insider filings"

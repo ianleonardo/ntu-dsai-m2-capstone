@@ -4,6 +4,10 @@ config-version: 2
 
 profile: 'dbt_insider_transactions'
 
+# Override if BigQuery table name differs (check `bq ls` / console after meltano load-sp500-companies).
+vars:
+  sp500_companies_identifier: sp500_companies
+
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]

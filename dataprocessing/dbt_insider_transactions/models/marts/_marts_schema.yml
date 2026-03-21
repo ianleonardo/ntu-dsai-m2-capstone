@@ -64,6 +64,11 @@ models:
       - name: form_type_description
         description: "Description of form type"
 
+  - name: sp500_insider_transactions
+    description: >-
+      fct_insider_transactions rows where the issuer is in stg_sp500_companies
+      (match on ISSUERTRADINGSYMBOL or ISSUERCIK). One row per ACCESSION_NUMBER.
+
   - name: fct_insider_transactions
     description: "Fact table for insider transactions with ACCESSION_NUMBER as primary key"
     columns:
