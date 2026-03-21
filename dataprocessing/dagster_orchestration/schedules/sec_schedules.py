@@ -7,8 +7,10 @@ from typing import List, Optional
 
 from dagster import ScheduleDefinition, RunRequest, DefaultScheduleStatus, build_schedule_context
 
-from ..jobs.sec_pipeline_direct import sec_direct_pipeline_job
-from ..jobs.sec_pipeline_with_dbt import dbt_transformation_job
+from ..jobs.sec_pipeline_direct import (
+    dbt_transformation_job_direct,
+    sec_pipeline_direct_complete_job,
+)
 
 
 def get_current_quarter() -> str:
@@ -57,9 +59,9 @@ def get_quarter_start_date(quarter: str, year: int) -> datetime:
 quarterly_sec_schedule = ScheduleDefinition(
     name="quarterly_sec_schedule",
     cron_schedule="0 2 1 */3 *",  # At 2:00 AM on the first day of every quarter (Jan, Apr, Jul, Oct)
-    job=sec_direct_pipeline_job,
+    job=sec_pipeline_direct_complete_job,
     default_status=DefaultScheduleStatus.RUNNING,
-    description="Runs SEC data pipeline at the start of each quarter for the previous quarter's data",
+    description="Runs full SEC direct pipeline (ingestion + dbt + summary) for the previous quarter",
     execution_timezone="UTC",
 )
 
@@ -87,7 +89,7 @@ def quarterly_sec_schedule_context():
 # Monthly validation schedule
 monthly_validation_schedule = ScheduleDefinition(
     name="monthly_validation_schedule",
-    job=dbt_transformation_job,
+    job=dbt_transformation_job_direct,
     cron_schedule="0 8 1 * *",  # 8 AM on the 1st of every month
     default_status=DefaultScheduleStatus.STOPPED,
     description="Monthly validation of SEC data pipeline and data quality checks",
@@ -112,10 +114,10 @@ def monthly_validation_schedule_context():
 # Weekly health check schedule
 weekly_health_check_schedule = ScheduleDefinition(
     name="weekly_health_check_schedule",
-    job=sec_direct_pipeline_job,
+    job=sec_pipeline_direct_complete_job,
     cron_schedule="0 7 * * 1",  # 7 AM every Monday
     default_status=DefaultScheduleStatus.STOPPED,
-    description="Weekly health check of SEC data availability and pipeline components",
+    description="Weekly run: full SEC direct pipeline (ingestion + dbt + summary) on a small window",
     execution_timezone="UTC",
 )
 
@@ -147,10 +149,10 @@ def weekly_health_check_schedule_context():
 # Year-end complete load schedule
 year_end_schedule = ScheduleDefinition(
     name="year_end_schedule",
-    job=sec_direct_pipeline_job,
+    job=sec_pipeline_direct_complete_job,
     cron_schedule="0 6 1 1 *",  # 6 AM on January 1st
     default_status=DefaultScheduleStatus.STOPPED,
-    description="Year-end complete load of all quarters for the previous year",
+    description="Year-end: full SEC direct pipeline for all quarters of the previous year",
     execution_timezone="UTC",
 )
 
@@ -216,7 +218,7 @@ def create_custom_schedule(
     
     return ScheduleDefinition(
         name=name,
-        job=sec_direct_pipeline_job,
+        job=sec_pipeline_direct_complete_job,
         cron_schedule=cron_expression,
         default_status=DefaultScheduleStatus.STOPPED,
         description=description,
@@ -263,7 +265,7 @@ def create_backfill_schedule(years: List[int]) -> ScheduleDefinition:
     
     return ScheduleDefinition(
         name="backfill_schedule",
-        job=sec_direct_pipeline_job,
+        job=sec_pipeline_direct_complete_job,
         cron_schedule="0 2 1 1 *",  # Run once on January 1st at 2 AM
         default_status=DefaultScheduleStatus.STOPPED,
         description="One-time backfill of historical SEC data",

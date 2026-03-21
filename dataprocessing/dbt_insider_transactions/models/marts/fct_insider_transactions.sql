@@ -144,13 +144,13 @@ fact_table AS (
         ro.reporting_owner_ciks
         
     FROM submission s
+    LEFT JOIN {{ ref('dim_date') }} d ON d.date_field = s.FILING_DATE
+    LEFT JOIN {{ ref('dim_date') }} d_period ON d_period.date_field = s.PERIOD_OF_REPORT
     LEFT JOIN non_deriv_trans_agg nt ON s.ACCESSION_NUMBER = nt.ACCESSION_NUMBER
     LEFT JOIN deriv_trans_agg dt ON s.ACCESSION_NUMBER = dt.ACCESSION_NUMBER
     LEFT JOIN non_deriv_holdings_agg nh ON s.ACCESSION_NUMBER = nh.ACCESSION_NUMBER
     LEFT JOIN deriv_holdings_agg dh ON s.ACCESSION_NUMBER = dh.ACCESSION_NUMBER
     LEFT JOIN reporting_owners ro ON s.ACCESSION_NUMBER = ro.ACCESSION_NUMBER
-    LEFT JOIN {{ ref('dim_date') }} d ON d.date_field = s.FILING_DATE
-    LEFT JOIN {{ ref('dim_date') }} d_period ON d_period.date_field = s.PERIOD_OF_REPORT
 )
 
 SELECT * FROM fact_table

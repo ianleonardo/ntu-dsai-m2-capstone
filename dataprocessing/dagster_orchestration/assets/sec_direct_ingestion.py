@@ -42,6 +42,7 @@ class SECIngestionConfig(Config):
     dataset: Optional[str] = None
     batch_size: Optional[int] = None
     dry_run: Optional[bool] = None
+    skip_dedupe: Optional[bool] = None
 
 
 @asset(
@@ -88,6 +89,8 @@ def sec_direct_ingestion(
         pipeline_overrides["batch_size"] = config.batch_size
     if config.dry_run is not None:
         pipeline_overrides["dry_run"] = config.dry_run
+    if config.skip_dedupe is not None:
+        pipeline_overrides["skip_dedupe"] = config.skip_dedupe
 
     base_cfg = get_pipeline_config(**pipeline_overrides)
 
@@ -101,6 +104,7 @@ def sec_direct_ingestion(
     # Initialize BigQuery loader once (dataset settings are stable across years).
     loader = SECBigQueryLoader(base_cfg.project_id, base_cfg.dataset)
     loader.batch_size = base_cfg.batch_size
+    loader.skip_dedupe = base_cfg.skip_dedupe
 
     if not base_cfg.dry_run:
         loader.ensure_dataset_exists()
@@ -160,6 +164,7 @@ def sec_direct_ingestion(
             "total_rows": total_rows,
             "tables_loaded": len(tables_loaded),
             "dry_run": base_cfg.dry_run,
+            "skip_dedupe": base_cfg.skip_dedupe,
         }
     )
 

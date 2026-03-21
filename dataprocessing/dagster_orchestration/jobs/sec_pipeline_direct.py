@@ -6,8 +6,9 @@ that uses direct download from SEC website to BigQuery.
 All jobs use centralized configuration for consistency.
 """
 
-from dagster import define_asset_job, AssetSelection, ConfigMapping, Field
+from dagster import Array, ConfigMapping, Field, define_asset_job, AssetSelection
 
+from ..assets.sec_bigquery_dedupe import sec_bigquery_dedupe_only
 from ..assets.sec_direct_ingestion import sec_direct_ingestion
 from ..assets.sec_direct_pipeline_summary import sec_direct_pipeline_summary
 from ..assets.dbt_integration import dbt_insider_transformation
@@ -23,14 +24,23 @@ def _sec_direct_pipeline_config_fn(job_config: dict) -> dict:
     ingestion_cfg: dict = {}
     summary_cfg: dict = {}
 
-    # Ingestion op supports year/from_year/to_year, quarters, dataset, batch_size, dry_run.
-    for key in ("year", "from_year", "to_year", "dataset", "batch_size", "dry_run"):
+    # Ingestion op supports year/from_year/to_year, quarters, dataset, batch_size, dry_run, skip_dedupe.
+    for key in (
+        "year",
+        "from_year",
+        "to_year",
+        "quarters",
+        "dataset",
+        "batch_size",
+        "dry_run",
+        "skip_dedupe",
+    ):
         v = job_config.get(key)
         if v not in (None, "", []):
             ingestion_cfg[key] = v
 
     # Summary op supports year/from_year/to_year, quarters, dataset.
-    for key in ("year", "from_year", "to_year", "dataset"):
+    for key in ("year", "from_year", "to_year", "quarters", "dataset"):
         v = job_config.get(key)
         if v not in (None, "", []):
             summary_cfg[key] = v
@@ -44,12 +54,46 @@ def _sec_direct_pipeline_config_fn(job_config: dict) -> dict:
 
 
 _SEC_DIRECT_PIPELINE_CONFIG_SCHEMA = {
-    "year": Field(int, is_required=False),
-    "from_year": Field(int, is_required=False),
-    "to_year": Field(int, is_required=False),
-    "dataset": Field(str, is_required=False),
-    "batch_size": Field(int, is_required=False),
-    "dry_run": Field(bool, is_required=False),
+    "year": Field(
+        int,
+        is_required=False,
+        description="Single calendar year to load (use this OR from_year + to_year, not both).",
+    ),
+    "from_year": Field(
+        int,
+        is_required=False,
+        description="Start year for a multi-year backfill (must be set together with to_year).",
+    ),
+    "to_year": Field(
+        int,
+        is_required=False,
+        description="End year for a multi-year backfill (must be set together with from_year).",
+    ),
+    "quarters": Field(
+        Array(str),
+        is_required=False,
+        description="Quarters to load per year, e.g. [\"q1\", \"q2\"]. Omit for all quarters (q1–q4).",
+    ),
+    "dataset": Field(
+        str,
+        is_required=False,
+        description="BigQuery dataset id; defaults from BIGQUERY_DATASET env if omitted.",
+    ),
+    "batch_size": Field(
+        int,
+        is_required=False,
+        description="Rows per BigQuery insert batch; defaults from SEC_BATCH_SIZE env if omitted.",
+    ),
+    "dry_run": Field(
+        bool,
+        is_required=False,
+        description="If true, ingestion skips loading data (validation / dry run only).",
+    ),
+    "skip_dedupe": Field(
+        bool,
+        is_required=False,
+        description="If true, skip BigQuery dedupe after each table load (duplicates may remain).",
+    ),
 }
 
 
@@ -60,21 +104,11 @@ sec_direct_ingestion_job = define_asset_job(
     description="Load SEC data directly from SEC website to BigQuery",
 )
 
-sec_direct_pipeline_job = define_asset_job(
-    name="sec_direct_pipeline_job",
-    selection=AssetSelection.assets(sec_direct_ingestion, sec_direct_pipeline_summary),
-    description="Complete SEC pipeline (no GCS): direct ingestion + summary",
-    config=ConfigMapping(
-        config_fn=_sec_direct_pipeline_config_fn,
-        config_schema=_SEC_DIRECT_PIPELINE_CONFIG_SCHEMA,
-    ),
-)
-
 # Job for dbt transformations only
 dbt_transformation_job_direct = define_asset_job(
     name="dbt_transformation_job_direct",
     selection=dbt_assets,
-    description="Run dbt transformations on SEC data (direct pipeline variant)",
+    description="dbt run + dbt test on SEC data (direct pipeline variant)",
 )
 
 # Complete simplified pipeline: SEC direct ingestion + dbt transformations + summary
@@ -85,9 +119,34 @@ sec_pipeline_direct_complete_job = define_asset_job(
         dbt_insider_transformation,
         sec_direct_pipeline_summary,
     ),
-    description="Complete SEC pipeline (no GCS): direct ingestion + dbt + summary",
+    description="Complete SEC pipeline: direct ingestion + dbt + summary",
     config=ConfigMapping(
         config_fn=_sec_direct_pipeline_config_fn,
         config_schema=_SEC_DIRECT_PIPELINE_CONFIG_SCHEMA,
+    ),
+)
+
+def _dedupe_only_job_config_fn(job_config: dict) -> dict:
+    op_cfg: dict = {}
+    ds = job_config.get("dataset")
+    if ds not in (None, ""):
+        op_cfg["dataset"] = ds
+    return {"ops": {"sec_bigquery_dedupe_only": {"config": op_cfg}}}
+
+
+# Catalog: BigQuery dedupe only (no SEC download)
+sec_dedupe_only_job = define_asset_job(
+    name="sec_dedupe_only_job",
+    selection=AssetSelection.assets(sec_bigquery_dedupe_only),
+    description="Dedupe SEC raw tables in BigQuery only (no SEC download; optional dataset override)",
+    config=ConfigMapping(
+        config_fn=_dedupe_only_job_config_fn,
+        config_schema={
+            "dataset": Field(
+                str,
+                is_required=False,
+                description="BigQuery dataset id; defaults from BIGQUERY_DATASET / pipeline config if omitted.",
+            ),
+        },
     ),
 )

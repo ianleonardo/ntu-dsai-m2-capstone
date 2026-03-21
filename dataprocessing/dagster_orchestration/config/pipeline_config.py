@@ -46,6 +46,12 @@ class SECPipelineConfig(BaseModel):
         default=False,
         description="Run in dry-run mode (no data insertion)"
     )
+
+    skip_dedupe: bool = Field(
+        default_factory=lambda: os.getenv("SEC_SKIP_DEDUPE", "").strip().lower()
+        in ("1", "true", "yes"),
+        description="If true, skip BigQuery post-load dedupe (SEC_SKIP_DEDUPE env)",
+    )
     
     class Config:
         extra = "forbid"

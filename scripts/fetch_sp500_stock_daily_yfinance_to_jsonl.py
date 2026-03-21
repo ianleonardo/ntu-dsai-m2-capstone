@@ -21,6 +21,7 @@ import io
 import json
 import sys
 from datetime import date
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -29,6 +30,10 @@ SP500_CONSTITUENTS_URL = (
     "https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv"
 )
 DEFAULT_USER_AGENT = "ntu-dsai-m2-capstone/1.0 (yfinance sp500 pipeline)"
+SMA_LEN = 200
+BACKCANDLES_PREV = 3
+HIST_THRESH = 4e-6
+HIST_WINDOW = 3
 
 
 def _parse_date(value: str) -> str:
@@ -116,6 +121,85 @@ def _safe_json_int(value) -> int | None:
         return None
 
 
+def _sma_trend_signal(df, i: int, backcandles_prev: int, sma_col: str) -> int:
+    """Trend signal from script/ta_sma_macd.py logic."""
+    if i < backcandles_prev:
+        return 0
+    if df[sma_col].isna().iloc[i]:
+        return 0
+    start = i - backcandles_prev
+    seg = df.iloc[start : i + 1]
+    up = ((seg["open"] > seg[sma_col]) & (seg["close"] > seg[sma_col])).all()
+    down = ((seg["open"] < seg[sma_col]) & (seg["close"] < seg[sma_col])).all()
+    return 1 if up else (-1 if down else 0)
+
+
+def _add_ta_columns(
+    sub,
+    sma_col: str = "SMA200",
+    signal_col: str = "pre_signal",
+    macd_col: str = "MACD_12_26_9",
+    macds_col: str = "MACDs_12_26_9",
+    macdh_col: str = "MACDh_12_26_9",
+):
+    """Add SMA/MACD/pre_signal columns using ta_sma_macd.py semantics."""
+    out = sub.copy()
+    out = out.sort_values("date").reset_index(drop=True)
+
+    # Indicators
+    out[sma_col] = out["close"].rolling(window=SMA_LEN, min_periods=SMA_LEN).mean()
+    ema_fast = out["close"].ewm(span=12, adjust=False).mean()
+    ema_slow = out["close"].ewm(span=26, adjust=False).mean()
+    out[macd_col] = ema_fast - ema_slow
+    out[macds_col] = out[macd_col].ewm(span=9, adjust=False).mean()
+    out[macdh_col] = out[macd_col] - out[macds_col]
+
+    # sma_signal
+    out["sma_signal"] = [
+        _sma_trend_signal(out, i, BACKCANDLES_PREV, sma_col) for i in range(len(out))
+    ]
+
+    # MACD cross logic with pullback confirmation via histogram
+    macd_line = out[macd_col]
+    macd_sig = out[macds_col]
+    macd_hist = out[macdh_col]
+    macd_line_prev = macd_line.shift(1)
+    macd_sig_prev = macd_sig.shift(1)
+
+    hist_below_win = (
+        macd_hist.rolling(HIST_WINDOW, min_periods=HIST_WINDOW).min() < -HIST_THRESH
+    )
+    hist_above_win = (
+        macd_hist.rolling(HIST_WINDOW, min_periods=HIST_WINDOW).max() > HIST_THRESH
+    )
+
+    bull_cross_below0 = (
+        hist_below_win
+        & (macd_line_prev <= macd_sig_prev)
+        & (macd_line > macd_sig)
+        & (macd_line < 0)
+        & (macd_sig < 0)
+    )
+    bear_cross_above0 = (
+        hist_above_win
+        & (macd_line_prev >= macd_sig_prev)
+        & (macd_line < macd_sig)
+        & (macd_line > 0)
+        & (macd_sig > 0)
+    )
+
+    out["MACD_signal"] = 0
+    out.loc[bull_cross_below0, "MACD_signal"] = 1
+    out.loc[bear_cross_above0, "MACD_signal"] = -1
+
+    out[signal_col] = 0
+    out.loc[(out["sma_signal"] == 1) & (out["MACD_signal"] == 1), signal_col] = 1
+    out.loc[(out["sma_signal"] == -1) & (out["MACD_signal"] == -1), signal_col] = -1
+
+    # Keep rows for loading; represent unavailable indicators as null in JSONL.
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fetch S&P 500 daily stock data (1d) and write JSONL for Meltano."
@@ -171,6 +255,9 @@ def main() -> None:
 
     # Stream write JSONL to avoid holding the whole dataset in memory.
     total_rows = 0
+    started_at = datetime.utcnow()
+    chunks_done = 0
+    total_chunks = (len(symbols) + chunk_size - 1) // chunk_size
     with out_jsonl.open("w", encoding="utf-8") as f:
         for i in range(0, len(symbols), chunk_size):
             chunk_symbols = symbols[i : i + chunk_size]
@@ -178,7 +265,8 @@ def main() -> None:
             yf_to_raw = {y: raw for y, raw in zip(chunk_yf, chunk_symbols)}
 
             print(
-                f"Fetching {len(chunk_symbols)} tickers ({i+1}-{min(i+chunk_size, len(symbols))})..."
+                f"[chunk {chunks_done + 1}/{total_chunks}] Fetching {len(chunk_symbols)} tickers ({i+1}-{min(i+chunk_size, len(symbols))})...",
+                flush=True,
             )
             df = yf.download(
                 chunk_yf,
@@ -239,6 +327,14 @@ def main() -> None:
 
                 # Drop rows without a date.
                 sub = sub.dropna(subset=["date"]).copy()
+                sub = _add_ta_columns(
+                    sub,
+                    sma_col="SMA200",
+                    signal_col="pre_signal",
+                    macd_col="MACD_12_26_9",
+                    macds_col="MACDs_12_26_9",
+                    macdh_col="MACDh_12_26_9",
+                )
 
                 for _idx, row in sub.iterrows():
                     d = row["date"]
@@ -258,14 +354,25 @@ def main() -> None:
                         "close": _safe_json_number(row.get("close")),
                         # target-bigquery expects integer volume
                         "volume": _safe_json_int(row.get("volume")),
+                        "SMA200": _safe_json_number(row.get("SMA200")),
+                        "pre_signal": _safe_json_int(row.get("pre_signal")),
+                        "MACD_12_26_9": _safe_json_number(row.get("MACD_12_26_9")),
+                        "MACDs_12_26_9": _safe_json_number(row.get("MACDs_12_26_9")),
+                        "MACDh_12_26_9": _safe_json_number(row.get("MACDh_12_26_9")),
                     }
                     # Avoid writing completely empty rows.
                     if record["close"] is None and record["open"] is None:
                         continue
                     f.write(json.dumps(record, ensure_ascii=False) + "\n")
                     total_rows += 1
+            chunks_done += 1
+            elapsed_sec = int((datetime.utcnow() - started_at).total_seconds())
+            print(
+                f"[heartbeat] chunks={chunks_done}/{total_chunks}, rows_written={total_rows}, elapsed={elapsed_sec}s",
+                flush=True,
+            )
 
-    print(f"Wrote {total_rows} JSONL rows to {out_jsonl}")
+    print(f"Wrote {total_rows} JSONL rows to {out_jsonl}", flush=True)
 
 
 if __name__ == "__main__":

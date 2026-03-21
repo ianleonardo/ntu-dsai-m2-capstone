@@ -13,13 +13,6 @@ enhanced AS (
         RPTOWNER_RELATIONSHIP,
         RPTOWNER_TITLE,
         RPTOWNER_TXT,
-        RPTOWNER_STREET1,
-        RPTOWNER_STREET2,
-        RPTOWNER_CITY,
-        RPTOWNER_STATE,
-        RPTOWNER_ZIPCODE,
-        RPTOWNER_STATE_DESC,
-        FILE_NUMBER,
         -- Create role type from relationship field
         CASE 
             WHEN LOWER(RPTOWNER_RELATIONSHIP) LIKE '%director%' AND LOWER(RPTOWNER_RELATIONSHIP) LIKE '%officer%' THEN 'Director & Officer'

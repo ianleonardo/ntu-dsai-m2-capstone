@@ -5,10 +5,11 @@ This repository defines all assets, jobs, and schedules for orchestrating
 the SEC data pipeline with Dagster.
 """
 
-from dagster import Definitions, ScheduleDefinition, repository
+from dagster import Definitions, repository
 
 # Import assets (relative imports inside package)
 from .assets.dbt_integration import dbt_insider_transformation
+from .assets.sec_bigquery_dedupe import sec_bigquery_dedupe_only
 
 # Import simplified SEC direct ingestion assets (no GCS)
 from .assets.sec_direct_ingestion import sec_direct_ingestion
@@ -21,14 +22,11 @@ from .assets.sp500_stock_daily_integration import (
     sp500_stock_daily_pipeline_summary,
 )
 
-# Import jobs
-from .jobs.sec_pipeline_with_dbt import (
-    dbt_transformation_job,
-)
-
 # Import simplified SEC direct ingestion jobs
 from .jobs.sec_pipeline_direct import (
-    sec_direct_pipeline_job,
+    dbt_transformation_job_direct,
+    sec_dedupe_only_job,
+    sec_direct_ingestion_job,
     sec_pipeline_direct_complete_job,
 )
 
@@ -57,7 +55,8 @@ def sec_data_repository():
     return [
         # Assets
         dbt_insider_transformation,
-        
+        sec_bigquery_dedupe_only,
+
         # Simplified SEC direct ingestion assets (no GCS)
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
@@ -67,11 +66,10 @@ def sec_data_repository():
         sp500_stock_daily_pipeline_summary,
         
         # Jobs
-        dbt_transformation_job,
-
-        # Simplified SEC direct ingestion jobs (no GCS)
-        sec_direct_pipeline_job,
+        sec_direct_ingestion_job,
+        dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
+        sec_dedupe_only_job,
 
         sp500_stock_daily_pipeline_job,
         
@@ -89,13 +87,15 @@ def create_simple_repository():
     return Definitions(
         assets=[
             dbt_insider_transformation,
+            sec_bigquery_dedupe_only,
             sec_direct_ingestion,
             sec_direct_pipeline_summary,
         ],
         jobs=[
-            dbt_transformation_job,
-            sec_direct_pipeline_job,
+            sec_direct_ingestion_job,
+            dbt_transformation_job_direct,
             sec_pipeline_direct_complete_job,
+            sec_dedupe_only_job,
         ],
     )
 
@@ -104,6 +104,7 @@ def create_simple_repository():
 definitions = Definitions(
     assets=[
         dbt_insider_transformation,
+        sec_bigquery_dedupe_only,
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
 
@@ -112,9 +113,10 @@ definitions = Definitions(
         sp500_stock_daily_pipeline_summary,
     ],
     jobs=[
-        dbt_transformation_job,
-        sec_direct_pipeline_job,
+        sec_direct_ingestion_job,
+        dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
+        sec_dedupe_only_job,
 
         sp500_stock_daily_pipeline_job,
     ],

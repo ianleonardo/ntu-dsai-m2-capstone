@@ -6,12 +6,14 @@ sources:
     schema: insider_transactions
     tables:
       - name: sec_submission
-        description: "SEC submission fact table with ACCESSION_NUMBER as primary key"
+        description: >-
+          SEC submissions loaded from TSV. ACCESSION_NUMBER is unique per filing in SEC feeds,
+          but this table may contain duplicate accessions after repeated loads (append-only ingestion).
+          Staging model stg_sec_submission dedupes to one row per ACCESSION_NUMBER.
         columns:
           - name: ACCESSION_NUMBER
-            description: "Primary key for submission"
+            description: "Filing accession (duplicates possible in raw table)"
             tests:
-              - unique
               - not_null
 
       - name: sec_reportingowner
@@ -33,6 +35,14 @@ sources:
             description: "Non-derivative transaction surrogate key"
             tests:
               - not_null
+          - name: TRANS_SHARES
+            description: "Transaction share count (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
+          - name: TRANS_PRICEPERSHARE
+            description: "Price per share (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
 
       - name: sec_nonderiv_holding
         description: "SEC non-derivative holding dimension table"
@@ -53,6 +63,14 @@ sources:
             description: "Derivative transaction surrogate key"
             tests:
               - not_null
+          - name: TRANS_SHARES
+            description: "Transaction share count (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
+          - name: TRANS_PRICEPERSHARE
+            description: "Price per share (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
 
       - name: sec_deriv_holding
         description: "SEC derivative holding dimension table"

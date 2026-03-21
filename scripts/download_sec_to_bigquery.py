@@ -15,6 +15,14 @@ Environment variables:
     GOOGLE_APPLICATION_CREDENTIALS: Path to service account key (optional)
     BIGQUERY_DATASET: BigQuery dataset name (default: insider_transactions)
     SEC_BATCH_SIZE: Batch size for BigQuery inserts (default: 1000)
+    SEC_SKIP_DEDUPE: If 1/true/yes, skip post-load BigQuery dedupe (default: dedupe on)
+
+Deduplication:
+    Loads use streaming inserts, so re-running the pipeline can append duplicate primary keys.
+    After each successful table load, we run a BigQuery query with WRITE_TRUNCATE into the
+    same table (one row per primary key; prefer highest pipeline `year` when present).
+    This preserves partitioning/clustering; CREATE OR REPLACE is not used. Use `--dedupe-only`
+    to run cleanup without downloading SEC data.
 """
 
 import argparse
@@ -26,7 +34,7 @@ import os
 import time
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional, Sequence
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -86,6 +94,14 @@ TABLE_CONFIGS = {
 }
 
 
+def primary_keys_for_table_id(table_id: str) -> Optional[List[str]]:
+    """Return SEC natural keys for a BigQuery table id (e.g. sec_submission)."""
+    for cfg in TABLE_CONFIGS.values():
+        if cfg.get("table_id") == table_id:
+            return list(cfg["primary_keys"])
+    return None
+
+
 class SECBigQueryLoader:
     """Handles direct SEC data loading to BigQuery."""
     
@@ -94,6 +110,8 @@ class SECBigQueryLoader:
         self.dataset = dataset
         self.client = bigquery.Client(project=project_id)
         self.batch_size = int(os.getenv("SEC_BATCH_SIZE", "1000"))
+        env_skip = os.getenv("SEC_SKIP_DEDUPE", "").strip().lower()
+        self.skip_dedupe = env_skip in ("1", "true", "yes")
         
     def ensure_dataset_exists(self):
         """Ensure the BigQuery dataset exists."""
@@ -177,6 +195,80 @@ class SECBigQueryLoader:
 
         print(f"Successfully inserted {len(rows)} rows to {table_id}")
         return True
+
+    def dedupe_table(self, table_name: str, primary_keys: Sequence[str]) -> bool:
+        """
+        Truncate and reload deduplicated rows (same table): one row per primary_keys composite.
+        Prefers max(`year`) when a `year` column exists; ties broken arbitrarily.
+        """
+        if not primary_keys:
+            print(f"Dedupe skipped for {table_name}: no primary_keys", file=sys.stderr)
+            return True
+
+        fq_ref = f"{self.project_id}.{self.dataset}.{table_name}"
+        fqtn = f"`{self.project_id}.{self.dataset}.{table_name}`"
+
+        try:
+            table = self.client.get_table(fq_ref)
+        except Exception as e:
+            print(f"Dedupe failed: cannot read table {fq_ref}: {e}", file=sys.stderr)
+            return False
+
+        col_names = {f.name for f in table.schema}
+        pk_quoted = ", ".join(f"`{k}`" for k in primary_keys)
+        for pk in primary_keys:
+            if pk not in col_names:
+                print(
+                    f"Dedupe failed: primary key column {pk!r} missing on {fq_ref}",
+                    file=sys.stderr,
+                )
+                return False
+
+        has_year = "year" in col_names
+        order_clause = (
+            " ORDER BY COALESCE(SAFE_CAST(`year` AS INT64), -1) DESC"
+            if has_year
+            else ""
+        )
+
+        # Truncate-and-reload via query job keeps partitioning / clustering (e.g. Meltano _sdc_batched_at).
+        # CREATE OR REPLACE TABLE ... AS would drop the partition spec and fail on those tables.
+        sql = f"""
+        SELECT * EXCEPT(rn)
+        FROM (
+            SELECT
+                *,
+                ROW_NUMBER() OVER (PARTITION BY {pk_quoted}{order_clause}) AS rn
+            FROM {fqtn}
+        )
+        WHERE rn = 1
+        """
+
+        try:
+            job_config = bigquery.QueryJobConfig(
+                destination=fq_ref,
+                write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+            )
+            job = self.client.query(sql, job_config=job_config)
+            job.result()
+            print(f"Deduped {fq_ref} on ({', '.join(primary_keys)})")
+        except Exception as e:
+            print(f"Dedupe query failed for {fq_ref}: {e}", file=sys.stderr)
+            return False
+        return True
+
+    def dedupe_all_configured_tables(self) -> bool:
+        """Run dedupe for every SEC table in TABLE_CONFIGS (e.g. --dedupe-only)."""
+        ok = True
+        for table in SEC_TABLES:
+            cfg = TABLE_CONFIGS.get(table)
+            if not cfg:
+                continue
+            tid = cfg["table_id"]
+            pks = cfg["primary_keys"]
+            if not self.dedupe_table(tid, pks):
+                ok = False
+        return ok
     
     def process_table_data(self, table_name: str, tsv_content: str, year: int) -> bool:
         """Process TSV content and stream to BigQuery."""
@@ -198,7 +290,18 @@ class SECBigQueryLoader:
                 else:
                     print(f"Warning: Skipping malformed row in {table_name}: {line[:100]}...")
         
-        return self.stream_to_bigquery(table_name, rows, year)
+        if not self.stream_to_bigquery(table_name, rows, year):
+            return False
+
+        if self.skip_dedupe:
+            return True
+
+        pks = primary_keys_for_table_id(table_name)
+        if not pks:
+            print(f"Warning: No TABLE_CONFIGS entry for {table_name}; skipping dedupe", file=sys.stderr)
+            return True
+
+        return self.dedupe_table(table_name, pks)
 
 
 def download_sec_data(year: int, quarters: List[str]) -> Dict[str, str]:
@@ -259,7 +362,7 @@ def main():
     load_dotenv()
     
     parser = argparse.ArgumentParser(
-        description="Download SEC data directly to BigQuery (no GCS intermediate)."
+        description="Download SEC data directly to BigQuery."
     )
     parser.add_argument(
         "year",
@@ -299,12 +402,40 @@ def main():
         help="Download and process data but don't insert into BigQuery",
     )
     parser.add_argument(
+        "--skip-dedupe",
+        action="store_true",
+        help="After inserts, do not run BigQuery dedupe (duplicates may remain)",
+    )
+    parser.add_argument(
+        "--dedupe-only",
+        action="store_true",
+        help="Only run BigQuery dedupe for all configured SEC tables; no SEC download",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=int(os.getenv("SEC_BATCH_SIZE", "1000")),
         help="Batch size for BigQuery inserts (default: 1000)",
     )
     args = parser.parse_args()
+
+    if args.dedupe_only:
+        project_id = os.getenv("GOOGLE_PROJECT_ID")
+        if not project_id:
+            print("Error: GOOGLE_PROJECT_ID environment variable not set", file=sys.stderr)
+            sys.exit(1)
+        loader = SECBigQueryLoader(project_id, args.dataset)
+        loader.batch_size = args.batch_size
+        if args.skip_dedupe:
+            print("Error: --dedupe-only cannot be combined with --skip-dedupe", file=sys.stderr)
+            sys.exit(1)
+        loader.skip_dedupe = False
+        loader.ensure_dataset_exists()
+        print(f"Dedupe-only: project={project_id} dataset={args.dataset}")
+        if not loader.dedupe_all_configured_tables():
+            sys.exit(1)
+        print("Dedupe-only completed successfully")
+        sys.exit(0)
 
     # Resolve year(s) to process
     current_year = datetime.now().year
@@ -344,6 +475,8 @@ def main():
     # Initialize BigQuery loader
     loader = SECBigQueryLoader(project_id, args.dataset)
     loader.batch_size = args.batch_size
+    if args.skip_dedupe:
+        loader.skip_dedupe = True
 
     # Ensure dataset exists
     if not args.dry_run:

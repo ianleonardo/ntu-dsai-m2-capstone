@@ -64,8 +64,7 @@ uv run dbt docs serve --profiles-dir .
 ## Integration with Dagster
 
 The dbt transformations are integrated into the Dagster orchestration pipeline:
-- `dbt_insider_transformation`: Asset that runs all dbt models
-- `sec_pipeline_with_dbt_job`: Complete pipeline including dbt transformations
-- `dbt_transformation_job`: Standalone dbt transformation job
-
-The dbt transformations are configured to run after Meltano loads data into BigQuery.
+- `dbt_insider_transformation`: Asset that runs `dbt run` + `dbt test`
+- `sec_pipeline_direct_complete_job`: SEC direct ingestion → dbt → summary
+- `dbt_transformation_job_direct`: dbt-only job
+- `sec_dedupe_only_job`: BigQuery dedupe on SEC raw tables only (no download)

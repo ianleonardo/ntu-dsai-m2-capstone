@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: stg_sec_submission
+    description: "SEC submissions; one row per ACCESSION_NUMBER after deduping raw loads"
+    columns:
+      - name: ACCESSION_NUMBER
+        description: "Primary key — unique after deduplication in this model"
+        tests:
+          - unique
+          - not_null

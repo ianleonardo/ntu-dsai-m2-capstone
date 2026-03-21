@@ -89,7 +89,7 @@ def sec_direct_pipeline_summary(
 
     # Generate summary metadata
     summary_data = {
-        "pipeline_type": "SEC Direct (no GCS)",
+        "pipeline_type": "Process data directly from SEC website to BigQuery",
         "from_year": years_to_process[0],
         "to_year": years_to_process[-1],
         "years_processed": len(years_to_process),
@@ -107,12 +107,6 @@ def sec_direct_pipeline_summary(
             "GOOGLE_PROJECT_ID": os.getenv("GOOGLE_PROJECT_ID"),
             "SEC_BATCH_SIZE": os.getenv("SEC_BATCH_SIZE"),
         },
-        "pipeline_benefits": {
-            "gcs_eliminated": True,
-            "intermediate_steps_reduced": "5 → 2",
-            "estimated_speed_improvement": "45-60%",
-            "estimated_cost_savings": "$50-100/month",
-        }
     }
     
     # Log summary information

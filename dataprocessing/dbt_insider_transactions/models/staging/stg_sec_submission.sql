@@ -9,6 +9,22 @@ WITH source AS (
     FROM {{ source('insider_transactions', 'sec_submission') }}
 ),
 
+-- Raw BigQuery tables may contain duplicate ACCESSION_NUMBER (e.g. re-running ingestion
+-- appends the same filings). Keep one row per filing; prefer the latest load `year` when present.
+deduped AS (
+    SELECT * EXCEPT (rn)
+    FROM (
+        SELECT
+            *,
+            ROW_NUMBER() OVER (
+                PARTITION BY ACCESSION_NUMBER
+                ORDER BY COALESCE(SAFE_CAST(year AS INT64), -1) DESC
+            ) AS rn
+        FROM source
+    )
+    WHERE rn = 1
+),
+
 renamed AS (
     SELECT
         ACCESSION_NUMBER,
@@ -23,7 +39,7 @@ renamed AS (
         ISSUERCIK,
         ISSUERNAME,
         ISSUERTRADINGSYMBOL
-    FROM source
+    FROM deduped
     WHERE 1=1
     -- Exclude REMARKS, AFF10B5ONE, and columns ending with _FN
     -- Also exclude _sdc metadata columns

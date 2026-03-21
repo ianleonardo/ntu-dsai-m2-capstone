@@ -10,6 +10,12 @@ models:
           - not_null
       - name: reporting_owner_name
         description: "Name of the reporting owner"
+        tests:
+          - not_null
+      - name: RPTOWNER_RELATIONSHIP
+        description: "SEC relationship to issuer (director, officer, 10% owner, etc.)"
+        tests:
+          - not_null
       - name: role_type
         description: "Consolidated role type (Director, Officer, etc.)"
       - name: is_insider

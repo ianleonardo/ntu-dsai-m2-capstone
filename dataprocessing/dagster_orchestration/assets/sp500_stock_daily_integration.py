@@ -12,8 +12,6 @@ from typing import Optional
 
 from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataValue, asset
 
-
-# Resolve project root (repo root) and add scripts to the Python path
 # File path: .../dataprocessing/dagster_orchestration/assets/sp500_stock_daily_integration.py
 # repo root is 3 levels up from this file (parents[3])
 project_root = Path(__file__).resolve().parents[3]
@@ -76,14 +74,35 @@ def sp500_stock_daily_staging_data(
     ]
 
     # We use subprocess so Dagster works even when fetch script imports its own deps.
-    proc = subprocess.run(cmd, capture_output=True, text=True)
-    context.log.info(proc.stdout)
-    if proc.returncode != 0:
-        context.log.error(proc.stderr)
-        raise RuntimeError(f"SP500 fetch failed with exit code {proc.returncode}")
+    # Stream script logs live so long fetch windows do not look hung.
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
+    with subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    ) as proc:
+        assert proc.stdout is not None
+        assert proc.stderr is not None
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            stdout_lines.append(line)
+            if line:
+                context.log.info(line)
+        stderr_text = proc.stderr.read()
+        if stderr_text:
+            stderr_lines = [ln for ln in stderr_text.splitlines() if ln.strip()]
+            for ln in stderr_lines:
+                context.log.error(ln)
+        return_code = proc.wait()
+    if return_code != 0:
+        raise RuntimeError(f"SP500 fetch failed with exit code {return_code}")
+    stdout_text = "\n".join(stdout_lines)
 
     # Extract row count from fetch output (best-effort).
-    m = re.search(r"Wrote\s+(\d+)\s+JSONL rows", proc.stdout)
+    m = re.search(r"Wrote\s+(\d+)\s+JSONL rows", stdout_text)
     rows = int(m.group(1)) if m else None
 
     return MaterializeResult(
