@@ -2,6 +2,18 @@
 -- Central fact table with ACCESSION_NUMBER as primary key
 -- Links to all dimension tables following star schema principles
 
+{{
+  config(
+    materialized = 'table',
+    partition_by = {
+      'field': 'FILING_DATE',
+      'data_type': 'date',
+      'granularity': 'month'
+    },
+    cluster_by = ['ISSUERTRADINGSYMBOL', 'ISSUERCIK']
+  )
+}}
+
 WITH submission AS (
     SELECT * FROM {{ ref('stg_sec_submission') }}
 ),
@@ -108,10 +120,6 @@ fact_table AS (
         s.PERIOD_OF_REPORT,
         s.DATE_OF_ORIGINAL_SUBMISSION,
         s.NO_SECURITIES_OWNED,
-        s.NOT_SUBJECT_SEC16,
-        s.FORM3_HOLDINGS_REPORTED,
-        s.FORM4_TRANS_REPORTED,
-        s.DOCUMENT_TYPE,
         s.ISSUERCIK,
         s.ISSUERNAME,
         s.ISSUERTRADINGSYMBOL,
