@@ -840,9 +840,7 @@ async def get_tickers():
 # ─────────────────────────────────────────────
 @router.get("/stocks/{ticker}/chart")
 async def get_stock_chart(
-    ticker: str,
-    start_date: str,
-    end_date: str,
+    ticker: str
 ):
     safe_sym = _safe_ticker(ticker)
     if not safe_sym:
@@ -856,10 +854,13 @@ async def get_stock_chart(
             CAST(open AS FLOAT64) AS open,
             CAST(high AS FLOAT64) AS high,
             CAST(low AS FLOAT64) AS low,
-            CAST(close AS FLOAT64) AS close
+            CAST(close AS FLOAT64) AS close,
+            CAST(SMA200 AS FLOAT64) AS sma200,
+            CAST(MACD_12_26_9 AS FLOAT64) AS macd,
+            CAST(MACDs_12_26_9 AS FLOAT64) AS macd_signal,
+            CAST(MACDh_12_26_9 AS FLOAT64) AS macd_hist
         FROM {sd}
         WHERE UPPER(TRIM(CAST(symbol AS STRING))) = '{safe_sym}'
-          AND `date` BETWEEN DATE('{start_date}') AND DATE('{end_date}')
         ORDER BY `date` ASC
     """
     df = query_bigquery(query)
@@ -874,7 +875,11 @@ async def get_stock_chart(
             "open": _pd_float(r["open"]),
             "high": _pd_float(r["high"]),
             "low": _pd_float(r["low"]),
-            "close": _pd_float(r["close"])
+            "close": _pd_float(r["close"]),
+            "sma200": float(r["sma200"]) if pd.notna(r["sma200"]) else None,
+            "macd": float(r["macd"]) if pd.notna(r["macd"]) else None,
+            "macd_signal": float(r["macd_signal"]) if pd.notna(r["macd_signal"]) else None,
+            "macd_hist": float(r["macd_hist"]) if pd.notna(r["macd_hist"]) else None,
         })
         
     return {"data": out}

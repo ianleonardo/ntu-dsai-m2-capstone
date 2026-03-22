@@ -8,6 +8,7 @@ import {
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CandlestickModal from "./CandlestickModal";
 import {
   type TxRow,
   pick,
@@ -132,6 +133,7 @@ const COL_PCT = [13, 12, 11, 12, 7, 14, 16, 15] as const;
 export default function TransactionTable({ rowData, tickerClose = null }: TransactionTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("transDate");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [selectedChart, setSelectedChart] = useState<{ ticker: string; transDate: string } | null>(null);
 
   const onSort = (k: SortKey) => {
     if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -247,9 +249,18 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
                   className="border-b border-border/70 hover:bg-muted/20 transition-colors"
                 >
                   <td className="px-1 py-2 pl-2 align-top overflow-hidden">
-                    <div className="font-black text-foreground tracking-tight truncate" title={ticker || undefined}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (ticker && transD) {
+                          setSelectedChart({ ticker, transDate: transD.toISOString() });
+                        }
+                      }}
+                      className="font-black text-foreground tracking-tight truncate hover:text-primary hover:underline transition-colors text-left"
+                      title={ticker ? `View ${ticker} chart` : undefined}
+                    >
                       {ticker || "\u00a0"}
-                    </div>
+                    </button>
                     {company ? (
                       <div className="text-[10px] text-muted-foreground truncate mt-0.5" title={company}>
                         {company}
@@ -344,6 +355,13 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
           )}
         </tbody>
       </table>
+      {selectedChart && (
+        <CandlestickModal
+          ticker={selectedChart.ticker}
+          transDate={selectedChart.transDate}
+          onClose={() => setSelectedChart(null)}
+        />
+      )}
     </div>
   );
 }

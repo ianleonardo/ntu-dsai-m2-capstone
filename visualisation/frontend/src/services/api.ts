@@ -78,6 +78,20 @@ export const api = {
     return response.json();
   },
 
+  getTickerChart: async (ticker: string) => {
+    const response = await fetch(`${API_BASE_URL}/stocks/${ticker}/chart`);
+    return parseJsonResponse(response, "ticker chart") as Promise<{
+      data?: Array<{ 
+        time: string; 
+        open: number; high: number; low: number; close: number;
+        sma200: number | null;
+        macd: number | null;
+        macd_signal: number | null;
+        macd_hist: number | null;
+      }>;
+    }>;
+  },
+
   getSp500Companies: async () => {
     const response = await fetch(`${API_BASE_URL}/sp500-companies`);
     return response.json();
