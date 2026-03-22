@@ -9,6 +9,14 @@ plugins:
   - name: tap-csv
     variant: meltanolabs
     pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+        - entity: sec_submissions
+          path: ../data/sec
+          #path: ../data/sec/2025q1/SUBMISSION.tsv
+          keys: [ACCESSION_NUMBER] # Example primary key
+          #delimiter: "\t"
+        # Add other TSV files (e.g., TRANSACTIONS.tsv, SIGNATURES.tsv) and quarters as needed    pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
   loaders:
   - name: target-jsonl
     variant: andyh1203
