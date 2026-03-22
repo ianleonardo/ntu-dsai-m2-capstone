@@ -17,11 +17,41 @@ Because Cloud Run only exposes a single external port per service, and the Next.
                           artifactregistry.googleapis.com \
                           cloudbuild.googleapis.com
    ```
-3. A Google Cloud Service Account that has BigQuery access (e.g., `BigQuery Data Viewer` and `BigQuery Job User` roles) to attach to your Cloud Run services.
+3. A Google Cloud Service Account with BigQuery access. See the **Service Account Setup** section below.
 
 ---
 
-## Step 1: Build the Docker Image on GCP
+## Step 1: Service Account Setup
+
+To allow the FastAPI backend to securely query BigQuery without using your personal credentials, you must create a dedicated Service Account and grant it the necessary roles (`BigQuery Data Viewer` and `BigQuery Job User`).
+
+1. **Create the Service Account**:
+   ```bash
+   gcloud iam service-accounts create insider-alpha-sa \
+     --description="Service account for Insider Alpha Dashboard Cloud Run" \
+     --display-name="Insider Alpha SA"
+   ```
+
+2. **Grant BigQuery Roles**:
+   Assign the newly created Service Account the permissions it needs to read your datasets and execute queries. Replace `YOUR_PROJECT_ID` with your actual Google Cloud Project ID.
+
+   ```bash
+   # Grant BigQuery Job User (to run queries)
+   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+     --member="serviceAccount:insider-alpha-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/bigquery.jobUser"
+
+   # Grant BigQuery Data Viewer (to read the tables)
+   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+     --member="serviceAccount:insider-alpha-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/bigquery.dataViewer"
+   ```
+
+You will use this Service Account email (`insider-alpha-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com`) in the `--service-account` flag when deploying the backend in Step 3.
+
+---
+
+## Step 2: Build the Docker Image on GCP
 
 Submit the existing `Dockerfile` to Cloud Build to build the image and push it to Google Container Registry (or Artifact Registry).
 
@@ -34,7 +64,7 @@ gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/insider-dashboard
 
 ---
 
-## Step 2: Deploy the FastAPI Backend
+## Step 3: Deploy the FastAPI Backend
 
 Deploy the backend service. We will override the container entrypoint to only start `uvicorn` and listen on Cloud Run's `$PORT`.
 
@@ -54,12 +84,12 @@ Once deployed, the output will give you the **Service URL** (e.g., `https://insi
 
 ---
 
-## Step 3: Deploy the Next.js Frontend
+## Step 4: Deploy the Next.js Frontend
 
-Deploy the frontend service. We'll set the `NEXT_PUBLIC_API_URL` environment variable so Next.js knows exactly where to route API requests (the URL from Step 2). We will also override the command to only run Next.js.
+Deploy the frontend service. We'll set the `NEXT_PUBLIC_API_URL` environment variable so Next.js knows exactly where to route API requests (the URL from Step 3). We will also override the command to only run Next.js.
 
 ```bash
-# Replace BACKEND_SERVICE_URL with the URL generated from Step 2
+# Replace BACKEND_SERVICE_URL with the URL generated from Step 3
 gcloud run deploy insider-frontend \
   --image gcr.io/YOUR_PROJECT_ID/insider-dashboard \
   --command "bash" \

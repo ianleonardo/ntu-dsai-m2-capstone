@@ -51,6 +51,18 @@ uv run meltano run load-sp500-companies
 uv run meltano run load-sp500-stock-daily
 ```
 
+`SP500_STOCK_DAILY` is created with **BigQuery clustering on the tap’s key columns** (`symbol`, then `date`) via `cluster_on_key_properties: true` on `target-bigquery` in `meltano.yml`. That helps queries scoped by symbol (e.g. latest close per ticker).
+
+**Already have an unclustered table?** Clustering is applied when the target **first creates** the table. BigQuery does **not** support `clustering_fields` inside `ALTER TABLE ... SET OPTIONS` (that only covers options like `description`, `expiration_timestamp`, partition settings, etc.).
+
+To add clustering on an existing table, use the **`bq` CLI** (comma‑separated fields, **no spaces**). Adjust project, dataset, table id, and column names to match your table schema:
+
+```bash
+bq update --clustering_fields=symbol,date 'YOUR_PROJECT:insider_transactions.SP500_STOCK_DAILY'
+```
+
+If you do not use `bq`, you can **recreate** the table with `CREATE TABLE ... CLUSTER BY ... AS SELECT * FROM ...` (or copy + swap) — see [Google’s clustered tables docs](https://cloud.google.com/bigquery/docs/creating-clustered-tables).
+
 ## Using Helper Scripts
 
 We provide shell scripts to automate common ingestion tasks:

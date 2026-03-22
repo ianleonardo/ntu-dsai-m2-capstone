@@ -94,23 +94,23 @@ export default function CandlestickModal({ ticker, transDate, onClose }: Props) 
           const sorted = [...data].sort((a,b) => a.time.localeCompare(b.time));
           series.setData(sorted as unknown as CandlestickData[]);
 
-          const smaData: LineData[] = [];
-          const macdLineData: LineData[] = [];
-          const macdSignalData: LineData[] = [];
-          const macdHistData: HistogramData[] = [];
+          const smaData: (LineData | WhitespaceData)[] = [];
+          const macdLineData: (LineData | WhitespaceData)[] = [];
+          const macdSignalData: (LineData | WhitespaceData)[] = [];
+          const macdHistData: (HistogramData | WhitespaceData)[] = [];
 
           sorted.forEach(d => {
             const time = d.time as Time;
-            smaData.push(d.sma200 != null ? { time, value: d.sma200 } : { time } as WhitespaceData);
-            macdLineData.push(d.macd != null ? { time, value: d.macd } : { time } as WhitespaceData);
-            macdSignalData.push(d.macd_signal != null ? { time, value: d.macd_signal } : { time } as WhitespaceData);
-            macdHistData.push(d.macd_hist != null ? { time, value: d.macd_hist, color: d.macd_hist > 0 ? '#10b981' : '#ef4444' } : { time } as WhitespaceData);
+            smaData.push(d.sma200 != null ? { time, value: d.sma200 } : { time });
+            macdLineData.push(d.macd != null ? { time, value: d.macd } : { time });
+            macdSignalData.push(d.macd_signal != null ? { time, value: d.macd_signal } : { time });
+            macdHistData.push(d.macd_hist != null ? { time, value: d.macd_hist, color: d.macd_hist > 0 ? '#10b981' : '#ef4444' } : { time });
           });
 
-          smaSeries.setData(smaData);
-          macdLineSeries.setData(macdLineData);
-          macdSignalSeries.setData(macdSignalData);
-          macdHistSeries.setData(macdHistData);
+          smaSeries.setData(smaData as LineData[]);
+          macdLineSeries.setData(macdLineData as LineData[]);
+          macdSignalSeries.setData(macdSignalData as LineData[]);
+          macdHistSeries.setData(macdHistData as HistogramData[]);
 
           // Add a marker exactly on the closest data point
           const transTime = transDate.split("T")[0];

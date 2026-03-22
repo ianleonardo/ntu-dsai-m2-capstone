@@ -78,6 +78,9 @@ plugins:
       flattening_max_depth: 1
       method: batch_job
       batch_size: 500000
+      # Cluster on tap primary keys (default is _sdc_batched_at only). For SP500_STOCK_DAILY
+      # (keys: symbol, date) this co-locates rows by symbol — better for per-ticker latest-close joins.
+      cluster_on_key_properties: true
       # Upsert by primary key: accumulate multiple runs (e.g. multiple years) without duplicate keys
       upsert: true
         # credentials_path set via TARGET_BIGQUERY_CREDENTIALS_PATH in .env
