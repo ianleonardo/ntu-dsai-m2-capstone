@@ -9,7 +9,7 @@ sources:
         description: >-
           SEC submissions loaded from TSV. ACCESSION_NUMBER is unique per filing in SEC feeds,
           but this table may contain duplicate accessions after repeated loads (append-only ingestion).
-          Staging model stg_sec_submission dedupes to one row per ACCESSION_NUMBER.
+          Model dim_sec_submission dedupes to one row per ACCESSION_NUMBER.
         columns:
           - name: ACCESSION_NUMBER
             description: "Filing accession (duplicates possible in raw table)"
@@ -17,7 +17,7 @@ sources:
               - not_null
 
       - name: sec_reportingowner
-        description: "SEC reporting owner dimension table"
+        description: "SEC reporting owner rows (raw); cleaned in dim_sec_reporting_owner"
         columns:
           - name: ACCESSION_NUMBER
             description: "Foreign key to submission"
@@ -27,7 +27,7 @@ sources:
               - not_null
 
       - name: sec_nonderiv_trans
-        description: "SEC non-derivative transaction dimension table"
+        description: "SEC non-derivative transaction lines (raw); normalized in fct_sec_nonderiv_line"
         columns:
           - name: ACCESSION_NUMBER
             description: "Foreign key to submission"

@@ -1,36 +1,57 @@
 version: 2
 
 models:
-  - name: dim_reporting_owner
-    description: "Dimension table for reporting owners with role types and insider status"
+  - name: dim_sec_submission
+    description: "SEC filing dimension; one row per ACCESSION_NUMBER after deduping raw loads"
     columns:
-      - name: reporting_owner_cik
-        description: "Primary key for reporting owner"
+      - name: ACCESSION_NUMBER
+        description: "Primary key — unique after deduplication"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_sp500_company
+    description: "S&P 500 constituent dimension (symbol_norm, CIK, sector)"
+
+  - name: fct_sec_nonderiv_line
+    description: "Non-derivative transaction line fact (grain: ACCESSION_NUMBER + NONDERIV_TRANS_SK)"
+    columns:
+      - name: ACCESSION_NUMBER
         tests:
           - not_null
-      - name: reporting_owner_name
-        description: "Name of the reporting owner"
+      - name: NONDERIV_TRANS_SK
+        tests:
+          - not_null
+
+  - name: dim_sec_reporting_owner
+    description: >-
+      Reporting-owner rows with SEC column names plus role_type / is_insider.
+      Queried by FastAPI cluster breakdown (RPTOWNER* columns).
+    columns:
+      - name: RPTOWNERCIK
+        tests:
+          - not_null
+      - name: RPTOWNERNAME
         tests:
           - not_null
       - name: RPTOWNER_RELATIONSHIP
-        description: "SEC relationship to issuer (director, officer, 10% owner, etc.)"
         tests:
           - not_null
       - name: role_type
         description: "Consolidated role type (Director, Officer, etc.)"
       - name: is_insider
-        description: "Flag indicating if person is considered an insider"
+        description: "1 if director, officer, or 10% owner relationship"
 
   - name: sp500_insider_transactions
     description: >-
-      Same grain as fct_insider_transactions, filtered to S&P 500 issuers (stg_sp500_companies).
-      Materialized BigQuery table: partition TRANS_DATE by month (matches API date filter; under BQ 4000-partition cap), cluster symbol_norm.
-      Denormalized symbol_norm and issuer_gics_sector for fast API reads without joining sp500_companies.
+      Same grain as fct_insider_transactions, filtered to S&P 500 issuers (dim_sp500_company).
+      Materialized BigQuery table: partition TRANS_DATE by year, cluster TRANS_DATE + symbol_norm.
+      Denormalized symbol_norm and issuer_gics_sector for fast API reads.
     columns:
       - name: symbol_norm
         description: "Uppercased S&P trading symbol from constituent match (API ticker filter)"
       - name: issuer_gics_sector
-        description: "GICS sector from sp500_companies at build time"
+        description: "GICS sector from dim_sp500_company at build time"
 
   - name: fct_insider_transactions
     description: "Fact (view) at filing grain; non-derivative transactions only (no NONDERIV_HOLDING table)"
@@ -57,7 +78,7 @@ models:
       - name: total_non_deriv_value
         description: "Total value of non-derivative transactions"
       - name: reporting_owner_count
-        description: "Count of distinct reporting owners (by RPTOWNERCIK in staging)"
+        description: "Count of distinct reporting owners (by RPTOWNERCIK on dim_sec_reporting_owner)"
       - name: reporting_owner_names
         description: "Distinct owner names on the filing, concatenated"
       - name: reporting_owner_role_types

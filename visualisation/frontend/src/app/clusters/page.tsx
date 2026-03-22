@@ -677,7 +677,7 @@ export default function ClustersPage() {
                                   {!bdLoading && breakdown && breakdown.length === 0 && (
                                     <p className="text-sm text-muted-foreground py-2">
                                       No owner-level rows (ensure dbt has built{" "}
-                                      <code className="text-xs bg-background px-1 rounded">stg_sec_reportingowner</code> in
+                                      <code className="text-xs bg-background px-1 rounded">dim_sec_reporting_owner</code> in
                                       BigQuery).
                                     </p>
                                   )}

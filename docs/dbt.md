@@ -4,7 +4,7 @@ This document provides instructions on how to run data transformations using dbt
 
 ## Overview
 
-We use dbt (data build tool) to transform raw data loaded into BigQuery into analytics-ready models. The models follow a staging and marts structure.
+We use dbt (data build tool) to transform raw data loaded into BigQuery into analytics-ready models. Sources are declared in `models/_sources.yml`; transforms live under `models/marts/` (dimensions + facts + S&P mart).
 
 ## Configuration
 
@@ -44,8 +44,8 @@ This command will:
 
 ## Model Structure
 
-- **Staging (`models/staging`)**: Initial cleaning and renaming of raw tables.
-- **Marts (`models/marts`)**: Final business-level models (dimensions and facts) ready for visualization.
+- **`models/_sources.yml`**: Registered raw tables in BigQuery.
+- **`models/marts`**: `dim_*` (submissions, owners, S&P companies), `fct_sec_nonderiv_line`, `fct_insider_transactions`, `sp500_insider_transactions`.
 
 ## Testing and Quality Assurance
 
@@ -55,8 +55,9 @@ We have implemented several schema tests to ensure data integrity across the pip
 - **`not_null`**: Ensures that the specified column does not contain any null values.
 
 ### Current Test Coverage:
-- `stg_sec_submission`: `unique`, `not_null` on `ACCESSION_NUMBER`.
-- `dim_reporting_owner`: `not_null` on `reporting_owner_cik`, `reporting_owner_name`, and `RPTOWNER_RELATIONSHIP`.
+- `dim_sec_submission`: `unique`, `not_null` on `ACCESSION_NUMBER`.
+- `dim_sec_reporting_owner`: `not_null` on `RPTOWNERCIK`, `RPTOWNERNAME`, and `RPTOWNER_RELATIONSHIP`.
+- `fct_sec_nonderiv_line`: `not_null` on `ACCESSION_NUMBER` and `NONDERIV_TRANS_SK`.
 - `fct_insider_transactions`: `unique`, `not_null` on `ACCESSION_NUMBER`.
 
 These tests are executed automatically during `dbt build`.

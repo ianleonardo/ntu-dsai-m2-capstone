@@ -16,6 +16,6 @@ def sp500_stock_daily() -> str:
     return fqtn("sp500_stock_daily")
 
 
-def stg_sec_reportingowner() -> str:
-    """dbt `stg_sec_reportingowner` — required for /clusters/breakdown owner-level rows."""
-    return fqtn("stg_sec_reportingowner")
+def dim_sec_reporting_owner() -> str:
+    """dbt `dim_sec_reporting_owner` — owner-level rows for /clusters/breakdown (RPTOWNER* columns)."""
+    return fqtn("dim_sec_reporting_owner")

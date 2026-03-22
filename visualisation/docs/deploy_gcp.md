@@ -82,11 +82,9 @@ gcloud run deploy insider-backend \
 
 Once deployed, the output will give you the **Service URL** (e.g., `https://insider-backend-xxxxx-uc.a.run.app`).
 
----
-
 ## Step 4: Deploy the Next.js Frontend
 
-Deploy the frontend service. We'll set the `NEXT_PUBLIC_API_URL` environment variable so Next.js knows exactly where to route API requests (the URL from Step 3). We will also override the command to only run Next.js.
+Deploy the frontend service. We'll set the `BACKEND_URL` environment variable so the Next.js server knows exactly where to seamlessly proxy API requests (the URL from Step 3). We will also override the command to only run Next.js.
 
 ```bash
 # Replace BACKEND_SERVICE_URL with the URL generated from Step 3
@@ -97,9 +95,8 @@ gcloud run deploy insider-frontend \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars NEXT_PUBLIC_API_URL=https://BACKEND_SERVICE_URL/api
+  --set-env-vars BACKEND_URL=https://BACKEND_SERVICE_URL
 ```
-*(Note: Ensure `/api` is included at the end of the `NEXT_PUBLIC_API_URL`)*
 
 Once deployed, this command will output the **Frontend Service URL**. You can visit this URL in your browser to view the fully deployed Insider Alpha Dashboard!
 
@@ -109,8 +106,13 @@ Once deployed, this command will output the **Frontend Service URL**. You can vi
 Whenever you make changes to the code:
 1. Submit a new build:
    `gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/insider-dashboard`
-2. Update the services to use the latest image:
+2. Update the services to use the latest image (specify the region to avoid CLI prompts):
    ```bash
-   gcloud run services update insider-backend --image gcr.io/YOUR_PROJECT_ID/insider-dashboard
-   gcloud run services update insider-frontend --image gcr.io/YOUR_PROJECT_ID/insider-dashboard
+   gcloud run services update insider-backend \
+     --image gcr.io/YOUR_PROJECT_ID/insider-dashboard \
+     --region us-central1
+
+   gcloud run services update insider-frontend \
+     --image gcr.io/YOUR_PROJECT_ID/insider-dashboard \
+     --region us-central1
    ```

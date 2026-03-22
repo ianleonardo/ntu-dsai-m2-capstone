@@ -1,16 +1,10 @@
--- Staging model for SEC submission data
--- Excludes REMARKS, AFF10B5ONE, and columns ending with _FN as requested
---
--- Date columns: BigQuery may store SEC TSV dates as STRING, INT64, or FLOAT64.
--- See macro `parse_sec_date` for normalization (PARSE_DATE requires STRING).
+-- Filing-level dimension: one row per ACCESSION_NUMBER after deduping raw SEC submission loads.
 
 WITH source AS (
     SELECT *
     FROM {{ source('insider_transactions', 'sec_submission') }}
 ),
 
--- Raw BigQuery tables may contain duplicate ACCESSION_NUMBER (e.g. re-running ingestion
--- appends the same filings). Keep one row per filing; prefer the latest load `year` when present.
 deduped AS (
     SELECT * EXCEPT (rn)
     FROM (
@@ -40,9 +34,7 @@ renamed AS (
         ISSUERNAME,
         ISSUERTRADINGSYMBOL
     FROM deduped
-    WHERE 1=1
-    -- Exclude REMARKS, AFF10B5ONE, and columns ending with _FN
-    -- Also exclude _sdc metadata columns
+    WHERE 1 = 1
 )
 
 SELECT * FROM renamed

@@ -5,7 +5,7 @@
         "data_type": "date",
         "granularity": "year",
     },
-    cluster_by=["TRANS_DATE"","symbol_norm"],
+    cluster_by=["TRANS_DATE", "symbol_norm"],
 ) }}
 
 
@@ -14,7 +14,7 @@ WITH f AS (
 ),
 
 s AS (
-    SELECT * FROM {{ ref('stg_sp500_companies') }}
+    SELECT * FROM {{ ref('dim_sp500_company') }}
 )
 
 SELECT

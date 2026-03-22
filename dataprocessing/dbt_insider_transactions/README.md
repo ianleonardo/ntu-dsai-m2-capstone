@@ -1,64 +1,53 @@
 # dbt Insider Transactions
 
-This dbt project transforms SEC insider transactions data from BigQuery into a star schema for analytics.
+This dbt project transforms SEC insider transactions data from BigQuery into analytics-ready models (dims + facts + S&P mart).
 
 ## Project Structure
 
 ```
 models/
-├── staging/           # Raw data staging models
-├── intermediate/      # Intermediate transformations (currently empty)
-└── marts/            # Final dimensional models + S&P mart
-    ├── dim_reporting_owner.sql
+├── _sources.yml       # Raw BigQuery tables (Meltano / SEC loads)
+├── intermediate/      # Optional (currently unused)
+└── marts/
+    ├── dim_sec_submission.sql
+    ├── dim_sec_reporting_owner.sql
+    ├── dim_sp500_company.sql
+    ├── fct_sec_nonderiv_line.sql
     ├── fct_insider_transactions.sql
     └── sp500_insider_transactions.sql
 ```
 
-## Star Schema Design
+## Design
 
-### Fact
-- **fct_insider_transactions**: Central fact (BigQuery view) with `ACCESSION_NUMBER` as primary key
+### Facts
+- **fct_sec_nonderiv_line**: Line-level non-derivative SEC rows (grain: `ACCESSION_NUMBER` + `NONDERIV_TRANS_SK`).
+- **fct_insider_transactions**: Filing-grain fact (view); primary key `ACCESSION_NUMBER`.
+- **sp500_insider_transactions**: Same grain as filing fact, filtered to S&P 500 issuers (materialized table).
 
-### Dimension tables
-- **dim_reporting_owner**: Reporting insiders with role classifications
+### Dimensions
+- **dim_sec_submission**: Deduped filings, parsed dates.
+- **dim_sec_reporting_owner**: Reporting-owner rows (SEC `RPTOWNER*` columns + `role_type`, `is_insider`). Used by the API cluster breakdown.
+- **dim_sp500_company**: Normalized S&P 500 constituent list.
 
-Transaction coding labels (**Purchase** / **Sale** from SEC P/S codes) are computed in **`fct_insider_transactions`** via the `transaction_code_type_label` macro (`transaction_type_from_code` on the mart). There is no separate `dim_transaction_type` model — it was unused (nothing `ref`’d it).
+Transaction coding labels (**Purchase** / **Sale** from SEC P/S codes) are computed in **`fct_insider_transactions`** via the `transaction_code_type_label` macro (`transaction_type_from_code` on the mart).
 
 ## Data Source
 
 Transforms data from the `insider_transactions` dataset in BigQuery:
-- SEC_SUBMISSION (fact table source)
-- SEC_REPORTINGOWNER
-- SEC_NONDERIV_TRANS
+- `sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`, `sp500_companies` (see `_sources.yml`).
 
 ## Usage
 
-### Run all models
 ```bash
 cd dataprocessing/dbt_insider_transactions
-uv run dbt run --profiles-dir .
+uv run dbt build --profiles-dir .
 ```
 
-### Run specific models
 ```bash
 uv run dbt run --models +fct_insider_transactions --profiles-dir .
-```
-
-### Test data quality
-```bash
-uv run dbt test --profiles-dir .
-```
-
-### Generate documentation
-```bash
 uv run dbt docs generate --profiles-dir .
-uv run dbt docs serve --profiles-dir .
 ```
 
-## Integration with Dagster
+## Dagster
 
-The dbt transformations are integrated into the Dagster orchestration pipeline:
-- `dbt_insider_transformation`: Asset that runs `dbt run` + `dbt test`
-- `sec_pipeline_direct_complete_job`: SEC direct ingestion → dbt → summary
-- `dbt_transformation_job_direct`: dbt-only job
-- `sec_dedupe_only_job`: BigQuery dedupe on SEC raw tables only (no download)
+- `dbt_insider_transformation`, `sec_pipeline_direct_complete_job`, `dbt_transformation_job_direct`, `sec_dedupe_only_job` (see repo orchestration docs).

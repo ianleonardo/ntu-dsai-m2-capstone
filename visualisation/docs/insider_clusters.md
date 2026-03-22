@@ -11,7 +11,7 @@ Rows group **S&P insider transactions** from `sp500_insider_transactions` by:
 A row is returned only if:
 
 1. There are at least **`min_filings`** distinct filings (`ACCESSION_NUMBER`) in that bucket, and  
-2. There are at least **two distinct reporting owners** by **`RPTOWNERCIK`** on those filings, joined via **`stg_sec_reportingowner`** (same table as breakdown).  
+2. There are at least **two distinct reporting owners** by **`RPTOWNERCIK`** on those filings, joined via **`dim_sec_reporting_owner`** (same table as breakdown).  
    So **one insider filing multiple times in the week does not form a cluster** by themselves.
 
 Results are ordered by **cluster dollar value** on the server; the UI can re-sort.
@@ -23,7 +23,7 @@ Results are ordered by **cluster dollar value** on the server; the UI can re-sor
 
 ## Cluster breakdown (`GET /api/clusters/breakdown`)
 
-Owner-level rows for one cluster: **ticker** + **week_start** + **side** + **start_date / end_date**. Uses a **single** mart slice CTE (accession, date, amount) joined to **`stg_sec_reportingowner`** — no second full mart scan. Responses are cached separately (**~10 minutes** by default, see `CACHE_CLUSTER_BREAKDOWN_TTL_SECONDS`) so repeat **Analyze** is fast.
+Owner-level rows for one cluster: **ticker** + **week_start** + **side** + **start_date / end_date**. Uses a **single** mart slice CTE (accession, date, amount) joined to **`dim_sec_reporting_owner`** — no second full mart scan. Responses are cached separately (**~10 minutes** by default, see `CACHE_CLUSTER_BREAKDOWN_TTL_SECONDS`) so repeat **Analyze** is fast.
 
 Each row is an insider on a filing in that cluster, with **filing-level** dollar amount for the chosen side (repeated if several insiders are on the same Form 4).
 

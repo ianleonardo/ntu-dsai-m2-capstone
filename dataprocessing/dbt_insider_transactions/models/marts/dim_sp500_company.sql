@@ -1,5 +1,4 @@
--- Normalized S&P 500 constituent list (Meltano JSONL → BigQuery)
--- Join key: symbol_norm and/or cik_int vs fct issuer fields
+-- S&P 500 constituent dimension (grain: symbol_norm).
 
 WITH raw AS (
     SELECT * FROM {{ source('insider_transactions', 'sp500_companies') }}

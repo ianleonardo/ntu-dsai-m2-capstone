@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from core.bigquery import query_bigquery
-from core.bq import fqtn, sp500_mart, sp500_stock_daily, stg_sec_reportingowner
+from core.bq import dim_sec_reporting_owner, fqtn, sp500_mart, sp500_stock_daily
 from core.config import settings
 from core.cache import (
     get_cached_item,
@@ -589,7 +589,7 @@ def _fetch_cluster_breakdown_payload(
         )
         value_expr = "COALESCE(NULLIF(f.est_dispose_value, 0), IFNULL(f.non_deriv_value_disposed, 0), 0)"
 
-    ro = stg_sec_reportingowner()
+    ro = dim_sec_reporting_owner()
     # One pass over the mart for accession + amount + date; avoids a second mart join.
     query = f"""
         WITH filing_slice AS (
@@ -701,7 +701,7 @@ async def get_clusters(
         value_expr = "COALESCE(NULLIF(f.est_dispose_value, 0), IFNULL(f.non_deriv_value_disposed, 0), 0)"
         shares_expr = "IFNULL(f.non_deriv_shares_disposed, 0)"
 
-    ro_tbl = stg_sec_reportingowner()
+    ro_tbl = dim_sec_reporting_owner()
     query = f"""
         WITH filings AS (
             SELECT
@@ -939,7 +939,7 @@ def _query_sp500_companies_with_last_close() -> pd.DataFrame:
 # /search-directory/*  (split payloads — single 40MB+ JSON breaks browsers & DevTools)
 # ─────────────────────────────────────────────
 SEARCH_DIRECTORY_STOCKS_KEY = "search_directory_stocks_v2"
-SEARCH_DIRECTORY_INSIDERS_KEY = "search_directory_insiders_v3"
+SEARCH_DIRECTORY_INSIDERS_KEY = "search_directory_insiders_v4"
 # Cap keeps JSON parse + sessionStorage viable. List is mart-backed (names you can see in tx rows)
 # plus dim enrichment — typically well under this; limit is a safety valve.
 INSIDER_DIRECTORY_ROW_CAP = 25_000
@@ -971,7 +971,7 @@ def build_search_directory_insiders() -> List[dict]:
     Source of truth for *names* is the S&P mart column ``reporting_owner_names`` (same strings as
     the transaction table), exploded on ``|`` so every displayed insider label is discoverable.
 
-    ``dim_reporting_owner`` only enriches CIK / role / title when the trimmed name matches; rows
+    ``dim_sec_reporting_owner`` only enriches CIK / role / title when the trimmed name matches; rows
     still appear in the directory without dim metadata.
 
     Previously: one row per CIK from dim + ``MIN(name)`` + alphabetical ``LIMIT`` — many mart names
@@ -982,7 +982,7 @@ def build_search_directory_insiders() -> List[dict]:
         return cached
 
     mart = MART()
-    dim = fqtn("dim_reporting_owner")
+    dim = fqtn("dim_sec_reporting_owner")
     insiders_df = query_bigquery(
         f"""
         WITH mart_names AS (
@@ -993,15 +993,15 @@ def build_search_directory_insiders() -> List[dict]:
         ),
         dim_enriched AS (
             SELECT
-                UPPER(TRIM(CAST(reporting_owner_name AS STRING))) AS name_key,
-                MIN(CAST(reporting_owner_cik AS STRING)) AS cik,
+                UPPER(TRIM(CAST(RPTOWNERNAME AS STRING))) AS name_key,
+                MIN(CAST(RPTOWNERCIK AS STRING)) AS cik,
                 ANY_VALUE(role_type) AS role_type,
                 ANY_VALUE(TRIM(CAST(RPTOWNER_TITLE AS STRING))) AS title
             FROM {dim}
-            WHERE reporting_owner_name IS NOT NULL
-              AND TRIM(CAST(reporting_owner_name AS STRING)) != ''
-              AND reporting_owner_cik IS NOT NULL
-              AND TRIM(CAST(reporting_owner_cik AS STRING)) != ''
+            WHERE RPTOWNERNAME IS NOT NULL
+              AND TRIM(CAST(RPTOWNERNAME AS STRING)) != ''
+              AND RPTOWNERCIK IS NOT NULL
+              AND TRIM(CAST(RPTOWNERCIK AS STRING)) != ''
             GROUP BY name_key
         )
         SELECT
@@ -1063,7 +1063,9 @@ async def get_owners():
         return cached
 
     df = query_bigquery(
-        f"SELECT DISTINCT reporting_owner_name FROM {fqtn('dim_reporting_owner')} ORDER BY reporting_owner_name"
+        f"SELECT DISTINCT RPTOWNERNAME AS reporting_owner_name FROM {fqtn('dim_sec_reporting_owner')} "
+        f"WHERE RPTOWNERNAME IS NOT NULL AND TRIM(CAST(RPTOWNERNAME AS STRING)) != '' "
+        f"ORDER BY reporting_owner_name"
     )
     owners = df["reporting_owner_name"].tolist()
     set_cached_item(cache_key, owners)

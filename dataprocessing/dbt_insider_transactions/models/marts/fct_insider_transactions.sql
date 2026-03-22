@@ -3,7 +3,7 @@
 -- ACCESSION_NUMBER is the grain; totals equal non-derivative transaction aggregates.
 
 WITH submission AS (
-    SELECT * FROM {{ ref('stg_sec_submission') }}
+    SELECT * FROM {{ ref('dim_sec_submission') }}
 ),
 
 non_deriv_trans_agg AS (
@@ -64,7 +64,7 @@ non_deriv_trans_agg AS (
         ) AS est_dispose_value,
         -- Post-transaction shares on each line (SHRS_OWND_FOLWNG_TRANS); MAX ≈ largest reported balance in filing.
         MAX(SAFE_CAST(SHARES_OWNED_FOLLOWING_TRANSACTION AS FLOAT64)) AS total_non_deriv_shares_owned
-    FROM {{ ref('stg_sec_nonderiv_trans') }}
+    FROM {{ ref('fct_sec_nonderiv_line') }}
     GROUP BY ACCESSION_NUMBER
 ),
 
@@ -74,7 +74,7 @@ trans_dates AS (
     SELECT
         ACCESSION_NUMBER,
         COALESCE(TRANSACTION_DATE, DEEMED_EXECUTION_DATE) AS line_txn_date
-    FROM {{ ref('stg_sec_nonderiv_trans') }}
+    FROM {{ ref('fct_sec_nonderiv_line') }}
     WHERE COALESCE(TRANSACTION_DATE, DEEMED_EXECUTION_DATE) IS NOT NULL
 ),
 
@@ -88,7 +88,7 @@ transaction_type_from_code_rows AS (
     SELECT
         ACCESSION_NUMBER,
         {{ transaction_code_type_label('TRANSACTION_CODING_CODE') }} AS transaction_type_from_code
-    FROM {{ ref('stg_sec_nonderiv_trans') }}
+    FROM {{ ref('fct_sec_nonderiv_line') }}
 ),
 
 transaction_type_from_code_agg AS (
@@ -118,7 +118,7 @@ reporting_owner_enriched AS (
             WHEN LOWER(RPTOWNER_RELATIONSHIP) LIKE '%10%%' THEN '10% Owner'
             ELSE 'Other'
         END AS role_type
-    FROM {{ ref('stg_sec_reportingowner') }}
+    FROM {{ ref('dim_sec_reporting_owner') }}
 ),
 
 reporting_owners AS (
