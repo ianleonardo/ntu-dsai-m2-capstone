@@ -10,21 +10,17 @@ models/
 ├── intermediate/      # Intermediate transformations (currently empty)
 └── marts/            # Final dimensional models
     ├── dim_reporting_owner.sql
-    ├── dim_security.sql
-    ├── dim_date.sql
     ├── dim_transaction_type.sql
     └── fct_insider_transactions.sql
 ```
 
 ## Star Schema Design
 
-### Fact Table
-- **fct_insider_transactions**: Central fact table with ACCESSION_NUMBER as primary key
+### Fact
+- **fct_insider_transactions**: Central fact (BigQuery view) with `ACCESSION_NUMBER` as primary key
 
 ### Dimension Tables
 - **dim_reporting_owner**: Information about reporting insiders with role classifications
-- **dim_security**: Security/instrument information including derivatives
-- **dim_date**: Comprehensive date dimension for temporal analysis
 - **dim_transaction_type**: Transaction coding reference data
 
 ## Data Source
@@ -33,9 +29,6 @@ Transforms data from the `insider_transactions` dataset in BigQuery:
 - SEC_SUBMISSION (fact table source)
 - SEC_REPORTINGOWNER
 - SEC_NONDERIV_TRANS
-- SEC_NONDERIV_HOLDING
-- SEC_DERIV_TRANS
-- SEC_DERIV_HOLDING
 
 ## Usage
 
