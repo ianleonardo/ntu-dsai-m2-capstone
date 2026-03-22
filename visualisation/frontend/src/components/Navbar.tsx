@@ -30,10 +30,10 @@ export default function Navbar() {
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-bold tracking-tight text-primary">
-              Insider Tracker
+              Insider Alpha
             </span>
           </Link>
-          
+
           <div className="hidden md:flex items-center gap-6">
             {navLinks.map((link) => (
               <Link

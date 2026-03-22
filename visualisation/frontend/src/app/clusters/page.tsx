@@ -12,6 +12,7 @@ import {
   defaultStoredDateRange,
 } from "@/lib/dateRangeStorage";
 import {
+  defaultClustersUiPersisted,
   loadClustersUiPersisted,
   saveClustersUiPersisted,
   type ClusterSortKey,
@@ -39,6 +40,7 @@ type ClusterRow = {
   week_start: string;
   first_trans: string;
   last_trans: string;
+  last_filing_date: string;
   cluster_value: number;
   cluster_shares?: number;
   implied_price_per_share?: number | null;
@@ -72,6 +74,27 @@ function currencyM(v: number) {
   const m = v / 1_000_000;
   if (m >= 1000) return `$${(m / 1000).toFixed(2)} B`;
   return `$${m.toFixed(2)} M`;
+}
+
+/** Whole calendar days from filing date (local) to today. */
+function filingDaysAgo(iso: string): number | null {
+  const day = isoDay(iso);
+  const [y, m, d] = day.split("-").map((x) => parseInt(x, 10));
+  if (!y || !m || !d) return null;
+  const filed = new Date(y, m - 1, d);
+  const t = new Date();
+  const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const diff = Math.floor((today.getTime() - filed.getTime()) / 86400000);
+  if (!Number.isFinite(diff)) return null;
+  return Math.max(0, diff);
+}
+
+function formatFilingDaysAgo(iso: string) {
+  const n = filingDaysAgo(iso);
+  if (n == null) return "—";
+  if (n === 0) return "Today";
+  if (n === 1) return "1 day ago";
+  return `${n} days ago`;
 }
 
 function clusterKey(r: ClusterRow) {
@@ -109,8 +132,8 @@ function clusterSortValue(
       return r.cluster_value;
     case "return":
       return clusterRetPct(r, tickerClose);
-    case "lastTxn": {
-      const t = new Date(r.last_trans).getTime();
+    case "filed": {
+      const t = Date.parse(isoDay(r.last_filing_date) + "T12:00:00");
       return Number.isFinite(t) ? t : 0;
     }
     default:
@@ -191,19 +214,19 @@ function ClusterTh({
 }
 
 export default function ClustersPage() {
-  const persisted = useMemo(() => loadClustersUiPersisted(), []);
-  const [side, setSide] = useState<"buy" | "sell">(persisted.side);
-  const [minFilings, setMinFilings] = useState(persisted.minFilings);
-  const [searchInput, setSearchInput] = useState(persisted.searchInput);
+  const ui0 = defaultClustersUiPersisted();
+  const [side, setSide] = useState<"buy" | "sell">(ui0.side);
+  const [minFilings, setMinFilings] = useState(ui0.minFilings);
+  const [searchInput, setSearchInput] = useState(ui0.searchInput);
   const [dateRange, setDateRange] = useState(() => defaultStoredDateRange());
-  const [appliedSearch, setAppliedSearch] = useState(persisted.appliedSearch);
+  const [appliedSearch, setAppliedSearch] = useState(ui0.appliedSearch);
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
   const [rows, setRows] = useState<ClusterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tickerClose, setTickerClose] = useState<Map<string, number>>(() => new Map());
-  const [priceBelowCostOnly, setPriceBelowCostOnly] = useState(persisted.priceBelowCostOnly);
-  const [sortKey, setSortKey] = useState<ClusterSortKey>(persisted.sortKey);
-  const [sortDir, setSortDir] = useState<"asc" | "desc">(persisted.sortDir);
+  const [priceBelowCostOnly, setPriceBelowCostOnly] = useState(ui0.priceBelowCostOnly);
+  const [sortKey, setSortKey] = useState<ClusterSortKey>(ui0.sortKey);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(ui0.sortDir);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [breakdownByKey, setBreakdownByKey] = useState<Map<string, BreakdownRow[]>>(() => new Map());
   const breakdownRef = useRef(breakdownByKey);
@@ -216,6 +239,14 @@ export default function ClustersPage() {
       setDateRange(stored);
       setAppliedRange(stored);
     }
+    const p = loadClustersUiPersisted();
+    setSide(p.side);
+    setMinFilings(p.minFilings);
+    setPriceBelowCostOnly(p.priceBelowCostOnly);
+    setSearchInput(p.searchInput);
+    setAppliedSearch(p.appliedSearch);
+    setSortKey(p.sortKey);
+    setSortDir(p.sortDir);
   }, []);
 
   useEffect(() => {
@@ -270,7 +301,6 @@ export default function ClustersPage() {
         endDate: appliedRange.end,
         min_filings: minFilings,
         limit: 150,
-        ticker: appliedFilter.ticker,
         search: appliedFilter.search,
       });
       const data = res.data;
@@ -288,7 +318,6 @@ export default function ClustersPage() {
     appliedRange.start,
     appliedRange.end,
     minFilings,
-    appliedFilter.ticker,
     appliedFilter.search,
   ]);
 
@@ -307,7 +336,7 @@ export default function ClustersPage() {
       if (k === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
       else {
         setSortKey(k);
-        setSortDir(k === "ticker" ? "asc" : k === "lastTxn" ? "desc" : "desc");
+        setSortDir(k === "ticker" ? "asc" : k === "filed" ? "desc" : "desc");
       }
     },
     [sortKey]
@@ -413,9 +442,8 @@ export default function ClustersPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-            Set search and date range, then Apply. A symbol like <span className="font-mono">AAPL</span> lists{" "}
-              <strong className="font-medium text-foreground">that ticker only</strong>. Names or phrases
-              search across insiders and companies.
+              Set search and date range, then Apply. Multiple symbols or phrases: separate with commas, semicolons, or new
+              lines (same as Detailed Transactions). Directory picks append to the box.
             </p>
           </div>
         </div>
@@ -534,8 +562,9 @@ export default function ClustersPage() {
                         className="text-right [&_button]:w-full [&_button]:justify-end pr-2"
                       />
                       <ClusterTh
-                        label="Last txn"
-                        sortKey="lastTxn"
+                        label="Filed"
+                        info="Calendar days since the latest SEC filing date among filings in this cluster (local date)."
+                        sortKey="filed"
                         activeKey={sortKey}
                         dir={sortDir}
                         onSort={onSort}
@@ -618,8 +647,11 @@ export default function ClustersPage() {
                                 {formatReturnPctDisplay(retPct)}
                               </div>
                             </td>
-                            <td className="px-2 py-3 text-muted-foreground tabular-nums text-[10px]">
-                              {formatIsoDateLabel(isoDay(r.last_trans))}
+                            <td className="px-2 py-3 text-[10px]">
+                              <div className="font-semibold text-foreground">{formatFilingDaysAgo(r.last_filing_date)}</div>
+                              <div className="text-muted-foreground mt-0.5 tabular-nums">
+                                {r.last_filing_date ? fmtClusterDate(r.last_filing_date) : "—"}
+                              </div>
                             </td>
                             <td className="px-2 py-3 text-right pr-2">
                               <button

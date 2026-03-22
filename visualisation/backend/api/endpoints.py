@@ -229,6 +229,19 @@ def _token_looks_like_ticker(part: str) -> bool:
     return _safe_ticker(p) is not None
 
 
+def _token_looks_like_ticker_when_multi(part: str) -> bool:
+    """Stricter than single-token: avoids treating e.g. AMAZON (6 letters) as a symbol when listing several terms."""
+    p = (part or "").strip()
+    if not p or re.search(r"\s", p):
+        return False
+    st = _safe_ticker(p)
+    if st is None:
+        return False
+    if "." in st:
+        return True
+    return len(st) <= 5
+
+
 def _parse_mart_search_tokens(
     ticker: Optional[str], search: Optional[str],
 ) -> tuple[list[str], list[str]]:
@@ -240,11 +253,11 @@ def _parse_mart_search_tokens(
         if st:
             tickers.append(st)
     if search:
-        for part in re.split(r"[,;\n]+", search.strip()):
-            p = part.strip()
-            if not p:
-                continue
-            if _token_looks_like_ticker(p):
+        parts = [p.strip() for p in re.split(r"[,;\n]+", search.strip()) if p.strip()]
+        multi = len(parts) > 1
+        for p in parts:
+            looks_ticker = _token_looks_like_ticker_when_multi(p) if multi else _token_looks_like_ticker(p)
+            if looks_ticker:
                 st = _safe_ticker(p)
                 if st:
                     tickers.append(st)
@@ -452,7 +465,7 @@ def fetch_transactions_payload(
         _safe_ticker(ticker) if ticker else None,
         search,
     )
-    cache_key = f"tx_v10:{start_date}:{end_date}:{ck_frag}:{min_value}:{page}:{page_size}"
+    cache_key = f"tx_v11:{start_date}:{end_date}:{ck_frag}:{min_value}:{page}:{page_size}"
     hit = get_transactions_cache(cache_key)
     if hit is not None:
         return hit
@@ -669,7 +682,7 @@ async def get_clusters(
         search,
     )
     cache_key = (
-        f"clusters_txn_v7:{side}:{start_date}:{end_date}:{min_filings}:{limit}:{ck_frag}"
+        f"clusters_txn_v8:{side}:{start_date}:{end_date}:{min_filings}:{limit}:{ck_frag}"
     )
     hit = get_clusters_cache(cache_key)
     if hit is not None:
@@ -825,6 +838,49 @@ async def get_tickers():
 # ─────────────────────────────────────────────
 # /sp500-companies  (same payload as search-directory/stocks; includes last close)
 # ─────────────────────────────────────────────
+@router.get("/stocks/{ticker}/chart")
+async def get_stock_chart(
+    ticker: str,
+    start_date: str,
+    end_date: str,
+):
+    safe_sym = _safe_ticker(ticker)
+    if not safe_sym:
+        return {"data": []}
+    
+    sd = sp500_stock_daily()
+    # lightweight-charts expects time as YYYY-MM-DD
+    query = f"""
+        SELECT 
+            CAST(`date` AS STRING) AS time,
+            CAST(open AS FLOAT64) AS open,
+            CAST(high AS FLOAT64) AS high,
+            CAST(low AS FLOAT64) AS low,
+            CAST(close AS FLOAT64) AS close
+        FROM {sd}
+        WHERE UPPER(TRIM(CAST(symbol AS STRING))) = '{safe_sym}'
+          AND `date` BETWEEN DATE('{start_date}') AND DATE('{end_date}')
+        ORDER BY `date` ASC
+    """
+    df = query_bigquery(query)
+    
+    if df.empty:
+        return {"data": []}
+        
+    out = []
+    for _, r in df.iterrows():
+        out.append({
+            "time": r["time"],
+            "open": _pd_float(r["open"]),
+            "high": _pd_float(r["high"]),
+            "low": _pd_float(r["low"]),
+            "close": _pd_float(r["close"])
+        })
+        
+    return {"data": out}
+
+
+# ─────────────────────────────────────────────
 @router.get("/sp500-companies")
 async def get_sp500_companies():
     """S&P 500 constituents plus latest `close` from `sp500_stock_daily` (per symbol, max date)."""
@@ -878,9 +934,10 @@ def _query_sp500_companies_with_last_close() -> pd.DataFrame:
 # /search-directory/*  (split payloads — single 40MB+ JSON breaks browsers & DevTools)
 # ─────────────────────────────────────────────
 SEARCH_DIRECTORY_STOCKS_KEY = "search_directory_stocks_v2"
-SEARCH_DIRECTORY_INSIDERS_KEY = "search_directory_insiders_v2"
-# Full distinct insider count is huge; cap keeps JSON parse + sessionStorage viable.
-INSIDER_DIRECTORY_ROW_CAP = 18_000
+SEARCH_DIRECTORY_INSIDERS_KEY = "search_directory_insiders_v3"
+# Cap keeps JSON parse + sessionStorage viable. List is mart-backed (names you can see in tx rows)
+# plus dim enrichment — typically well under this; limit is a safety valve.
+INSIDER_DIRECTORY_ROW_CAP = 25_000
 
 
 def _records_json_safe(df: pd.DataFrame) -> List[dict]:
@@ -904,28 +961,53 @@ def build_search_directory_stocks() -> List[dict]:
 
 
 def build_search_directory_insiders() -> List[dict]:
-    """Reporting owners for combobox (capped); cached separately."""
+    """Reporting owners for combobox (capped); cached separately.
+
+    Source of truth for *names* is the S&P mart column ``reporting_owner_names`` (same strings as
+    the transaction table), exploded on ``|`` so every displayed insider label is discoverable.
+
+    ``dim_reporting_owner`` only enriches CIK / role / title when the trimmed name matches; rows
+    still appear in the directory without dim metadata.
+
+    Previously: one row per CIK from dim + ``MIN(name)`` + alphabetical ``LIMIT`` — many mart names
+    were missing (late-alphabet CIKs past the cap, alternate spellings aggregated in the table, etc.).
+    """
     cached = get_cached_item(SEARCH_DIRECTORY_INSIDERS_KEY)
     if isinstance(cached, list) and len(cached) > 0:
         return cached
 
+    mart = MART()
     dim = fqtn("dim_reporting_owner")
-    # One row per SEC reporting-owner CIK. DISTINCT across (cik, name, role, title) repeated the
-    # same person for every role/title variant in staging.
     insiders_df = query_bigquery(
         f"""
+        WITH mart_names AS (
+            SELECT DISTINCT TRIM(part) AS name
+            FROM {mart} AS f,
+            UNNEST(SPLIT(IFNULL(CAST(f.reporting_owner_names AS STRING), ''), '|')) AS part
+            WHERE TRIM(part) != ''
+        ),
+        dim_enriched AS (
+            SELECT
+                UPPER(TRIM(CAST(reporting_owner_name AS STRING))) AS name_key,
+                MIN(CAST(reporting_owner_cik AS STRING)) AS cik,
+                ANY_VALUE(role_type) AS role_type,
+                ANY_VALUE(TRIM(CAST(RPTOWNER_TITLE AS STRING))) AS title
+            FROM {dim}
+            WHERE reporting_owner_name IS NOT NULL
+              AND TRIM(CAST(reporting_owner_name AS STRING)) != ''
+              AND reporting_owner_cik IS NOT NULL
+              AND TRIM(CAST(reporting_owner_cik AS STRING)) != ''
+            GROUP BY name_key
+        )
         SELECT
-            CAST(reporting_owner_cik AS STRING) AS cik,
-            MIN(TRIM(CAST(reporting_owner_name AS STRING))) AS name,
-            ANY_VALUE(role_type) AS role_type,
-            ANY_VALUE(TRIM(CAST(RPTOWNER_TITLE AS STRING))) AS title
-        FROM {dim}
-        WHERE reporting_owner_name IS NOT NULL
-          AND TRIM(CAST(reporting_owner_name AS STRING)) != ''
-          AND reporting_owner_cik IS NOT NULL
-          AND TRIM(CAST(reporting_owner_cik AS STRING)) != ''
-        GROUP BY reporting_owner_cik
-        ORDER BY MIN(UPPER(TRIM(CAST(reporting_owner_name AS STRING))))
+            mn.name AS name,
+            de.cik AS cik,
+            de.role_type AS role_type,
+            de.title AS title
+        FROM mart_names AS mn
+        LEFT JOIN dim_enriched AS de
+            ON UPPER(TRIM(mn.name)) = de.name_key
+        ORDER BY UPPER(mn.name)
         LIMIT {INSIDER_DIRECTORY_ROW_CAP}
         """
     )

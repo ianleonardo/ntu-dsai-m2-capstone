@@ -78,7 +78,6 @@ export default function TransactionsPage() {
       const data = await api.getTransactions({
         startDate: appliedRange.start,
         endDate: appliedRange.end,
-        ticker: appliedFilter.ticker,
         search: appliedFilter.search,
         page,
         page_size: PAGE_SIZE,
@@ -92,7 +91,7 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedRange.start, appliedRange.end, appliedFilter.ticker, appliedFilter.search, page]);
+  }, [appliedRange.start, appliedRange.end, appliedFilter.search, page]);
 
   useEffect(() => {
     void loadTransactions();
@@ -135,9 +134,9 @@ export default function TransactionsPage() {
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Set search and date range, then Apply. A symbol like <span className="font-mono">AAPL</span> lists{" "}
-              <strong className="font-medium text-foreground">that ticker only</strong>. Names or phrases
-              search across insiders and companies.
+              Set search and date range, then Apply. Use commas, semicolons, or new lines for multiple items: symbols
+              (e.g. <span className="font-mono">AAPL, MSFT</span>) match those tickers; other tokens match company or
+              insider text. Directory picks append to the box.
             </p>
           </div>
         </div>
@@ -155,16 +154,9 @@ export default function TransactionsPage() {
                     <span className="text-foreground font-medium tabular-nums">{totalRows.toLocaleString()}</span>{" "}
                     filing{totalRows === 1 ? "" : "s"} in range (by transaction date)
                   </>
-                ) : appliedFilter.ticker ? (
-                  <>
-                    Ticker{" "}
-                    <span className="font-mono text-foreground font-medium">{appliedFilter.ticker}</span> — page{" "}
-                    <span className="text-foreground font-medium tabular-nums">{page}</span>
-                    {hasMore ? " · more pages below" : " · end of results"}
-                  </>
                 ) : appliedSearch.trim() ? (
                   <>
-                    Free-text search — page <span className="text-foreground font-medium tabular-nums">{page}</span>
+                    Filtered search — page <span className="text-foreground font-medium tabular-nums">{page}</span>
                     {hasMore ? " · more pages below" : " · end of results"}
                   </>
                 ) : (

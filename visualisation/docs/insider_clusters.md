@@ -27,12 +27,9 @@ Owner-level rows for one cluster: **ticker** + **week_start** + **side** + **sta
 
 Each row is an insider on a filing in that cluster, with **filing-level** dollar amount for the chosen side (repeated if several insiders are on the same Form 4).
 
-## Search / ticker filter
+## Search filter
 
-Same rules as **Detailed Transactions** (`transactionsQueryFromInput` → `ticker` or `search` query params):
-
-- Single token matching the ticker pattern → exact **`symbol_norm`** match on the mart.
-- Otherwise → `LIKE` on **`symbol_norm`**, **issuer name**, and **`reporting_owner_names`**.
+Same as **Detailed Transactions**: one **`search`** string split on commas, semicolons, and newlines. Each token is either a **symbol** (strict rules when multiple tokens: length ≤5 or contains `.`, e.g. `BRK.B`) → **`symbol_norm IN (...)`**, or **free text** → `LIKE` on symbol, issuer, and reporting owner names. Matching uses **OR** across tokens.
 
 ## Price / cost / return
 
