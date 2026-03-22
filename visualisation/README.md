@@ -3,8 +3,9 @@
 This dashboard consists of a **FastAPI backend** and a **Next.js frontend**.
 
 ## Prerequisites
-- **Python 3.11+**
-- **Node.js 20+**
+- **[uv](https://docs.astral.sh/uv/)** (Python toolchain; installs a managed interpreter and deps—no manual `venv` / `activate`)
+- **Python 3.11+** (optional if you rely on `uv python install 3.11`)
+- **Node.js 20+** (Next.js frontend only—uv does not replace npm here)
 - **Google Cloud Authentication**: Ensure you have access to BigQuery. Run `gcloud auth application-default login` if you haven't already.
 
 ---
@@ -32,19 +33,21 @@ The dashboard will be available at `http://localhost:3000`.
 
 Run both services in **two separate terminal windows**.
 
-### Terminal 1 — Backend (FastAPI)
+### Terminal 1 — Backend (FastAPI, uv)
+
+From the repo root:
 
 ```bash
-cd visualisation
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cd visualisation/backend
+uv sync          # install locked deps (creates/updates `.venv` here; gitignored)
+uv run uvicorn main:app --reload --port 8000
 ```
+
 Backend API will be at `http://localhost:8000`.
 
-> **Note:** The virtual environment (`venv`) must be activated **before** running uvicorn. If you see `zsh: command not found: uvicorn`, it means the venv is not active.
+**Why uv instead of `python -m venv`:** You never run `activate`. `uv sync` + `uv run …` use the project lockfile (`uv.lock`) for reproducible installs. The `.venv` under `backend/` is only uv’s managed environment, not a hand-rolled venv workflow.
+
+To pin the interpreter to 3.11 (matches Docker), run once: `uv python install 3.11` (optional; `backend/.python-version` requests 3.11).
 
 ### Terminal 2 — Frontend (Next.js)
 
@@ -61,3 +64,27 @@ Frontend will be at `http://localhost:3000`.
 Ensure your `.env` file in the project root is correctly configured:
 - `GOOGLE_PROJECT_ID`: Your GCP project ID.
 - `BIGQUERY_DATASET`: The dataset name (e.g., `insider_transactions`).
+
+### Frontend → API (development)
+- If **`NEXT_PUBLIC_API_URL` is not set**, the browser calls **`http://127.0.0.1:8000/api/...`** directly (FastAPI’s CORS allows this). That avoids **Next.js dev rewrite proxy timeouts** on slow BigQuery responses (`ECONNRESET` / socket hang up). Start the backend on port **8000**.
+- To use the same-origin rewrite instead, set **`NEXT_PUBLIC_API_URL=/insider-api`** (and keep **`next.config.ts` rewrites**; override the target with **`BACKEND_URL`** if the API is not on 127.0.0.1:8000).
+- Production / `next start`: set **`NEXT_PUBLIC_API_URL`** to your deployed API base URL including `/api`.
+
+### BigQuery mart (`sp500_insider_transactions`)
+The dashboard expects this dbt model as a **native BigQuery table** (not a view): **partition** `TRANS_DATE` by **month** (aligned with API filters; BigQuery allows at most 4000 partitions; daily partitioning exceeds that on long SEC history), **cluster** `symbol_norm`, with **`symbol_norm`** and **`issuer_gics_sector`** denormalized at build time. After changing upstream data or this model, run:
+
+```bash
+cd dataprocessing/dbt_insider_transactions
+dbt run -m sp500_insider_transactions
+```
+
+Until this runs successfully, `/api/transactions` and related queries will error if the table lacks `symbol_norm` / `issuer_gics_sector`.
+
+## Behaviour notes
+- **Overview vs Detailed Transactions**: The selected date range is stored in `localStorage` (`insider_dashboard_date_range`) when you click **Apply** on **Detailed Transactions** or **Insider clusters** (or when changing dates on Overview), so pages can stay aligned.
+- **Dashboard numbers**: The pipeline is **non-derivative only** (no derivative SEC tables in dbt or Meltano load). Purchase/sale dollars use **`est_acquire_value` / `est_dispose_value`** (shares×price rolled up in dbt on the mart) when fact dollar columns are empty. The FastAPI layer reads **only** `sp500_insider_transactions` (no runtime joins to staging).
+- **Caching (API)**: Summary, top transactions, and clusters ~2–3 minutes; **transactions** ~5 minutes, larger in-memory key set (see `CACHE_TRANSACTIONS_*` in backend config). **Cluster breakdown** uses a dedicated cache (~10 minutes, `CACHE_CLUSTER_BREAKDOWN_TTL_SECONDS`). S&P 500 and **split** search directory endpoints ~1 hour. Insiders are **one row per `reporting_owner_cik`**, capped at 18k. On **startup**, search directory + **first page of transactions** (default date window, no filters) are warmed. The legacy **`GET /api/search-directory`** returns a small `use_split_endpoints` hint.
+- **Search UI**: Detailed Transactions uses one search box with **Markets (stocks)** vs **Insiders** sections; the browser caches the directory in `sessionStorage` for 24h after the first successful load.
+- **Detailed Transactions table**: Custom layout (ticker + transaction-size tier + sector chip, insider, role pills, dates + SEC viewer link, type, value/price, shares vs held). **GICS sector** is stored on the mart as **`issuer_gics_sector`** (no runtime join). **Ret / Curr.**: return \((\text{latest close} - \text{txn price}) / \text{txn price}\) using **`close`** from BigQuery **`sp500_stock_daily`** (latest `date` per symbol), joined in **`/api/search-directory/stocks`** and **`/api/sp500-companies`** (~1h cache). **Pagination** (50 rows per page): symbol tokens use exact **`ticker`** (API filters **`symbol_norm`** on the mart). **Free-text `search`** matches **`symbol_norm`**, issuer name, and **`reporting_owner_names`**. Ticker/search responses use **`has_more`** without exact **`total`**; unfiltered date-only loads return exact **`total`** for “page X of Y”. The API selects a **fixed column list** (not `SELECT *`).
+- **Market Activity Overview**: Summary + top buys/sells for the **current start/end** are stored in `sessionStorage` (`market_activity_overview_v1`) so revisiting Overview with the **same period** skips API calls until you change the date range (server still caches ~2m per period).
+- **Clusters**: Weekly buckets, same ticker, **≥2 distinct reporting-owner CIKs** (via **`stg_sec_reportingowner`**) and **`min_filings`**; defaults to **Cluster Buys**. **Search + date range + Apply** match Detailed Transactions. **Signal** shows that **distinct CIK count** plus **CEO / CFO** chips — see [`docs/insider_clusters.md`](docs/insider_clusters.md). **Analyze** loads **`GET /api/clusters/breakdown`** (single-pass mart + owner join; longer-lived cache). Dates in the table use **DD MMM yyyy**. Cluster UI choices persist in **`insider_clusters_ui_v1`**. **Price / cost / return** uses `implied_price_per_share` and **`last_close`**. **Price &lt; Cost** filters client-side.

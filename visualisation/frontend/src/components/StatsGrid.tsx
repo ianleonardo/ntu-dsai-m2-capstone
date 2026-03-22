@@ -1,5 +1,6 @@
 import React from "react";
 import { ArrowUpCircle, ArrowDownCircle, Percent } from "lucide-react";
+import { formatMillionsDisplay } from "@/lib/utils";
 
 interface StatsGridProps {
   stats: {
@@ -30,9 +31,9 @@ export default function StatsGrid({ stats }: StatsGridProps) {
             <ArrowUpCircle className="w-5 h-5 text-emerald-500" />
             <span className="text-sm font-medium">Purchases</span>
           </div>
-          <div className="text-3xl font-bold font-headline">${stats.purchase_value_m.toFixed(2)}M</div>
+          <div className="text-3xl font-bold font-headline">${formatMillionsDisplay(stats.purchase_value_m)}M</div>
           <div className="text-xs text-muted-foreground mt-1">
-            {stats.purchase_count} Companies
+            {stats.purchase_count.toLocaleString("en-US")} Companies
           </div>
         </div>
 
@@ -41,9 +42,9 @@ export default function StatsGrid({ stats }: StatsGridProps) {
             <ArrowDownCircle className="w-5 h-5 text-rose-500" />
             <span className="text-sm font-medium">Sales</span>
           </div>
-          <div className="text-3xl font-bold font-headline">${stats.sales_value_m.toFixed(2)}M</div>
+          <div className="text-3xl font-bold font-headline">${formatMillionsDisplay(stats.sales_value_m)}M</div>
           <div className="text-xs text-muted-foreground mt-1">
-            {stats.sales_count} Companies
+            {stats.sales_count.toLocaleString("en-US")} Companies
           </div>
         </div>
       </div>

@@ -17,10 +17,10 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
 
-# Copy Backend
-COPY backend/requirements.txt ./backend/
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# Backend: copy tree then uv sync (avoids wiping .venv from a second COPY)
 COPY backend/ ./backend/
+RUN pip install --no-cache-dir uv \
+    && cd backend && uv sync --frozen --no-cache
 
 # Copy Frontend Build and Source
 COPY --from=frontend-builder /app/frontend/.next ./frontend/.next

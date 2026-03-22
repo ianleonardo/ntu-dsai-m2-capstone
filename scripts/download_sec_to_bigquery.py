@@ -58,11 +58,8 @@ ALL_QUARTERS = list(VALID_QUARTERS)
 # SEC tables to process
 SEC_TABLES = [
     "SUBMISSION",
-    "REPORTINGOWNER", 
+    "REPORTINGOWNER",
     "NONDERIV_TRANS",
-    "NONDERIV_HOLDING",
-    "DERIV_TRANS",
-    "DERIV_HOLDING",
 ]
 
 # BigQuery table schema mappings (simplified - BigQuery will infer schema)
@@ -78,18 +75,6 @@ TABLE_CONFIGS = {
     "NONDERIV_TRANS": {
         "table_id": "sec_nonderiv_trans",
         "primary_keys": ["ACCESSION_NUMBER", "NONDERIV_TRANS_SK"],
-    },
-    "NONDERIV_HOLDING": {
-        "table_id": "sec_nonderiv_holding",
-        "primary_keys": ["ACCESSION_NUMBER", "NONDERIV_HOLDING_SK"],
-    },
-    "DERIV_TRANS": {
-        "table_id": "sec_deriv_trans",
-        "primary_keys": ["ACCESSION_NUMBER", "DERIV_TRANS_SK"],
-    },
-    "DERIV_HOLDING": {
-        "table_id": "sec_deriv_holding",
-        "primary_keys": ["ACCESSION_NUMBER", "DERIV_HOLDING_SK"],
     },
 }
 

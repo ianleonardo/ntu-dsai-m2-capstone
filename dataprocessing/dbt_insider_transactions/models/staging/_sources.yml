@@ -44,44 +44,6 @@ sources:
             tests:
               - non_negative_or_null
 
-      - name: sec_nonderiv_holding
-        description: "SEC non-derivative holding dimension table"
-        columns:
-          - name: ACCESSION_NUMBER
-            description: "Foreign key to submission"
-          - name: NONDERIV_HOLDING_SK
-            description: "Non-derivative holding surrogate key"
-            tests:
-              - not_null
-
-      - name: sec_deriv_trans
-        description: "SEC derivative transaction dimension table"
-        columns:
-          - name: ACCESSION_NUMBER
-            description: "Foreign key to submission"
-          - name: DERIV_TRANS_SK
-            description: "Derivative transaction surrogate key"
-            tests:
-              - not_null
-          - name: TRANS_SHARES
-            description: "Transaction share count (must be non-negative when numeric)"
-            tests:
-              - non_negative_or_null
-          - name: TRANS_PRICEPERSHARE
-            description: "Price per share (must be non-negative when numeric)"
-            tests:
-              - non_negative_or_null
-
-      - name: sec_deriv_holding
-        description: "SEC derivative holding dimension table"
-        columns:
-          - name: ACCESSION_NUMBER
-            description: "Foreign key to submission"
-          - name: DERIV_HOLDING_SK
-            description: "Derivative holding surrogate key"
-            tests:
-              - not_null
-
       # Meltano: meltano run load-sp500-companies (tap-jsonl-sp500, stream SP500_COMPANIES).
       # Target table name varies by loader; default assumes lowercase. Override with:
       #   dbt run --vars '{"sp500_companies_identifier": "YOUR_TABLE_NAME"}'

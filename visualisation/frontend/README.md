@@ -2,6 +2,8 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+The **API** for this app lives in `../backend/` and is run with **[uv](https://docs.astral.sh/uv/)** (`uv sync` / `uv run uvicorn …`); see the [visualisation README](../README.md).
+
 First, run the development server:
 
 ```bash

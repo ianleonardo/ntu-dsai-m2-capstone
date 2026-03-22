@@ -51,14 +51,12 @@ This command will:
 
 We have implemented several schema tests to ensure data integrity across the pipeline:
 
-- **`unique`**: Ensures that the specified column (e.g., `ACCESSION_NUMBER`, `date_key`) contains only unique values.
+- **`unique`**: Ensures that the specified column (e.g., `ACCESSION_NUMBER`) contains only unique values.
 - **`not_null`**: Ensures that the specified column does not contain any null values.
 
 ### Current Test Coverage:
 - `stg_sec_submission`: `unique`, `not_null` on `ACCESSION_NUMBER`.
 - `dim_reporting_owner`: `not_null` on `reporting_owner_cik`, `reporting_owner_name`, and `RPTOWNER_RELATIONSHIP`.
-- `dim_date`: `unique`, `not_null` on `date_key`.
-- `dim_transaction_type`: `not_null` on `transaction_type_key`.
 - `fct_insider_transactions`: `unique`, `not_null` on `ACCESSION_NUMBER`.
 
 These tests are executed automatically during `dbt build`.

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Start FastAPI backend
+# Start FastAPI backend (uv-managed env from uv.lock)
 cd /app/backend
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 &
 
 # Start Next.js frontend
 cd /app/frontend

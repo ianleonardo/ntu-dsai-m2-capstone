@@ -1,9 +1,0 @@
-fastapi
-uvicorn
-google-cloud-bigquery
-cachetools
-pydantic-settings
-python-dotenv
-pandas
-pyarrow
-db-dtypes

@@ -24,18 +24,6 @@ plugins:
         path: staging/NONDERIV_TRANS.csv
         keys: [ACCESSION_NUMBER, NONDERIV_TRANS_SK]
         delimiter: "\t"
-      - entity: SEC_NONDERIV_HOLDING
-        path: staging/NONDERIV_HOLDING.csv
-        keys: [ACCESSION_NUMBER, NONDERIV_HOLDING_SK]
-        delimiter: "\t"
-      - entity: SEC_DERIV_TRANS
-        path: staging/DERIV_TRANS.csv
-        keys: [ACCESSION_NUMBER, DERIV_TRANS_SK]
-        delimiter: "\t"
-      - entity: SEC_DERIV_HOLDING
-        path: staging/DERIV_HOLDING.csv
-        keys: [ACCESSION_NUMBER, DERIV_HOLDING_SK]
-        delimiter: "\t"
 
   - name: tap-jsonl
     namespace: tap_jsonl

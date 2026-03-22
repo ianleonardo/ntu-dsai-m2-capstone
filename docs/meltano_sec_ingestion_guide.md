@@ -15,9 +15,8 @@ This guide describes loading SEC Form 3/4/5 insider transaction data from a GCP 
 | SUBMISSION       | ACCESSION_NUMBER                       | XML submissions, filer/issuer  |
 | REPORTINGOWNER   | ACCESSION_NUMBER, RPTOWNERCIK          | Reporting owner details        |
 | NONDERIV_TRANS   | ACCESSION_NUMBER, NONDERIV_TRANS_SK    | Non-derivative transactions    |
-| NONDERIV_HOLDING | ACCESSION_NUMBER, NONDERIV_HOLDING_SK  | Non-derivative holdings        |
-| DERIV_TRANS      | ACCESSION_NUMBER, DERIV_TRANS_SK       | Derivative transactions        |
-| DERIV_HOLDING    | ACCESSION_NUMBER, DERIV_HOLDING_SK     | Derivative holdings             |
+
+Derivative tables (`DERIV_TRANS`, `DERIV_HOLDING`) and the separate **`NONDERIV_HOLDING`** TSV are not loaded; post-transaction share balances come from **`NONDERIV_TRANS`** (`SHRS_OWND_FOLWNG_TRANS`) in dbt.
 
 Table structures follow the SEC readme (`docs/insider_transactions_readme.pdf`). A `year` column is added during sync for BigQuery partitioning.
 

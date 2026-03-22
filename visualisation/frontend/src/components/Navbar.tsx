@@ -14,13 +14,14 @@ export default function Navbar() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- theme flash
     setMounted(true);
   }, []);
 
   const navLinks = [
     { label: "Overview", href: "/" },
     { label: "Detailed Transactions", href: "/transactions" },
-    { label: "Cluster Buys", href: "/clusters" },
+    { label: "Clusters", href: "/clusters" },
   ];
 
   return (

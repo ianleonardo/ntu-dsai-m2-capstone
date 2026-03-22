@@ -8,10 +8,10 @@ This dbt project transforms SEC insider transactions data from BigQuery into a s
 models/
 ├── staging/           # Raw data staging models
 ├── intermediate/      # Intermediate transformations (currently empty)
-└── marts/            # Final dimensional models
+└── marts/            # Final dimensional models + S&P mart
     ├── dim_reporting_owner.sql
-    ├── dim_transaction_type.sql
-    └── fct_insider_transactions.sql
+    ├── fct_insider_transactions.sql
+    └── sp500_insider_transactions.sql
 ```
 
 ## Star Schema Design
@@ -19,9 +19,10 @@ models/
 ### Fact
 - **fct_insider_transactions**: Central fact (BigQuery view) with `ACCESSION_NUMBER` as primary key
 
-### Dimension Tables
-- **dim_reporting_owner**: Information about reporting insiders with role classifications
-- **dim_transaction_type**: Transaction coding reference data
+### Dimension tables
+- **dim_reporting_owner**: Reporting insiders with role classifications
+
+Transaction coding labels (**Purchase** / **Sale** from SEC P/S codes) are computed in **`fct_insider_transactions`** via the `transaction_code_type_label` macro (`transaction_type_from_code` on the mart). There is no separate `dim_transaction_type` model — it was unused (nothing `ref`’d it).
 
 ## Data Source
 

@@ -1,70 +1,86 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback } from "react";
 import Navbar from "@/components/Navbar";
 import StatsGrid from "@/components/StatsGrid";
-import { api } from "@/services/api";
-import { Calendar, ChevronRight, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import DateRangePicker from "@/components/DateRangePicker";
+import { ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { cn, formatIsoDateLabel, formatMillionsDisplay } from "@/lib/utils";
+import {
+  loadStoredDateRange,
+  saveStoredDateRange,
+  defaultStoredDateRange,
+} from "@/lib/dateRangeStorage";
+import { readOverviewCache, type TopTx, type OverviewBundle } from "@/lib/overviewCache";
+import { loadOverviewBundle } from "@/lib/overviewFetch";
 
-interface TopTx {
-  ticker: string;
-  company: string;
-  value_m: number;
-}
+const EMPTY_STATS: OverviewBundle["stats"] = {
+  purchase_value_m: 0,
+  purchase_count: 0,
+  sales_value_m: 0,
+  sales_count: 0,
+};
 
 export default function Home() {
-  const [stats, setStats] = useState({
-    purchase_value_m: 0,
-    purchase_count: 0,
-    sales_value_m: 0,
-    sales_count: 0,
-  });
+  const [dateRange, setDateRange] = useState(() => defaultStoredDateRange());
+  const [stats, setStats] = useState(EMPTY_STATS);
   const [topBuys, setTopBuys] = useState<TopTx[]>([]);
   const [topSells, setTopSells] = useState<TopTx[]>([]);
   const [activeTab, setActiveTab] = useState<"buys" | "sells">("buys");
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
-  const setPresetRange = useCallback((months: number) => {
-    const end = new Date();
-    const start = new Date();
-    start.setMonth(start.getMonth() - months);
-    setDateRange({
-      start: start.toISOString().split("T")[0],
-      end: end.toISOString().split("T")[0],
-    });
+  useLayoutEffect(() => {
+    const stored = loadStoredDateRange();
+    if (stored) {
+      // Apply persisted range before passive effects; avoids hydration mismatch vs reading storage in useState.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional layout-time sync from localStorage
+      setDateRange(stored);
+    }
   }, []);
 
-  useEffect(() => { setPresetRange(6); }, [setPresetRange]);
+  const handleDateRange = useCallback(
+    (r: { start: string; end: string }) => {
+      setDateRange(r);
+      saveStoredDateRange(r);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!dateRange.start || !dateRange.end) return;
-    async function loadData() {
-      setLoading(true);
-      try {
-        const [summaryData, topData] = await Promise.all([
-          api.getSummary(dateRange.start, dateRange.end),
-          api.getTopTransactions(dateRange.start, dateRange.end),
-        ]);
-        setStats(summaryData);
-        setTopBuys(topData.top_buys || []);
-        setTopSells(topData.top_sells || []);
-      } catch (error) {
-        console.error("Error loading dashboard data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [dateRange]);
 
-  const presets = [
-    { label: "1 month", months: 1 },
-    { label: "3 months", months: 3 },
-    { label: "6 months", months: 6 },
-    { label: "1 year", months: 12 },
-  ];
+    const cached = readOverviewCache(dateRange.start, dateRange.end);
+    if (cached) {
+      queueMicrotask(() => {
+        setStats(cached.stats);
+        setTopBuys(cached.topBuys);
+        setTopSells(cached.topSells);
+        setLoading(false);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true);
+    });
+    loadOverviewBundle(dateRange.start, dateRange.end)
+      .then((bundle) => {
+        if (cancelled) return;
+        setStats(bundle.stats);
+        setTopBuys(bundle.topBuys);
+        setTopSells(bundle.topSells);
+      })
+      .catch((e) => {
+        console.error("Error loading dashboard data:", e);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dateRange.start, dateRange.end]);
 
   const activeItems = activeTab === "buys" ? topBuys : topSells;
 
@@ -73,59 +89,31 @@ export default function Home() {
       <Navbar />
 
       <main className="container mx-auto px-4 py-8 sm:px-8">
-        {/* Header + Date Picker */}
-        <div className="flex flex-col lg:flex-row justify-between items-start mb-10 gap-8">
-          <div className="max-w-2xl">
-            <h1 className="text-4xl font-extrabold font-headline tracking-tight text-foreground sm:text-5xl">
+
+        {/* Header + Picker row */}
+        <div className="flex flex-col lg:flex-row justify-between items-start mb-10 gap-6">
+          <div>
+            <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl">
               Market Activity Overview
             </h1>
-            <p className="text-muted-foreground mt-4 text-base leading-relaxed max-w-xl">
-              S&P 500 insider signals.
+            <p className="text-muted-foreground mt-3 text-base max-w-xl">
+              For S&P 500 constituents, metrics and top lists use reported{" "}
+              <span className="text-foreground/90 font-medium">transaction dates</span> within the analysis period:{" "}
+              <span className="text-primary font-semibold">
+                {dateRange.start ? formatIsoDateLabel(dateRange.start) : "—"}
+              </span>
+              {" "}to{" "}
+              <span className="text-primary font-semibold">
+                {dateRange.end ? formatIsoDateLabel(dateRange.end) : "—"}
+              </span>
             </p>
           </div>
-
-          <div className="w-full lg:w-auto bg-card p-4 rounded-2xl border border-border shadow-sm">
-            <div className="flex items-center gap-3 mb-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              <Calendar className="w-4 h-4" />
-              Analyze Period
-            </div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {presets.map((p) => (
-                <button
-                  key={p.label}
-                  onClick={() => setPresetRange(p.months)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-95",
-                    dateRange.start &&
-                      new Date(dateRange.start).getMonth() ===
-                      new Date(new Date().setMonth(new Date().getMonth() - p.months)).getMonth()
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-secondary text-secondary-foreground hover:bg-muted"
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
-                className="bg-background border border-border rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none"
-              />
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
-                className="bg-background border border-border rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-primary outline-none"
-              />
-            </div>
+          <div className="pt-1">
+            <DateRangePicker value={dateRange} onChange={handleDateRange} />
           </div>
         </div>
 
-        {/* Cards grid — Market Volume | Top Transactions (side by side) */}
+        {/* Cards grid */}
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="h-72 bg-card animate-pulse rounded-2xl border border-border" />
@@ -138,7 +126,6 @@ export default function Home() {
 
             {/* Top Transactions */}
             <div className="bg-card rounded-2xl border border-border shadow-md overflow-hidden flex flex-col">
-              {/* Header */}
               <div className="px-6 py-4 border-b border-border flex items-center justify-between">
                 <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">
                   Top Transactions
@@ -171,7 +158,6 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Rows */}
               <div className="flex-1 flex flex-col justify-center">
                 {activeItems.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground text-sm">
@@ -194,10 +180,10 @@ export default function Home() {
                       </div>
                       <div className="text-right">
                         <p className={cn(
-                          "text-xl font-bold font-headline",
+                          "text-xl font-bold",
                           activeTab === "buys" ? "text-emerald-400" : "text-rose-400"
                         )}>
-                          ${tx.value_m.toFixed(2)}M
+                          ${formatMillionsDisplay(tx.value_m)}M
                         </p>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                           {activeTab === "buys" ? "Purchased" : "Sold"}

@@ -1,5 +1,13 @@
--- Insider transaction facts restricted to issuers in the current S&P 500 constituent list.
--- Match on trading symbol and/or issuer CIK (when both sides parse to an integer).
+{{ config(
+    materialized='table',
+    partition_by={
+        "field": "TRANS_DATE",
+        "data_type": "date",
+        "granularity": "year",
+    },
+    cluster_by=["TRANS_DATE"","symbol_norm"],
+) }}
+
 
 WITH f AS (
     SELECT * FROM {{ ref('fct_insider_transactions') }}
@@ -9,7 +17,10 @@ s AS (
     SELECT * FROM {{ ref('stg_sp500_companies') }}
 )
 
-SELECT f.*
+SELECT
+    f.*,
+    s.symbol_norm AS symbol_norm,
+    TRIM(s.gics_sector) AS issuer_gics_sector
 FROM f
 INNER JOIN s
     ON UPPER(TRIM(COALESCE(f.ISSUERTRADINGSYMBOL, ''))) = s.symbol_norm

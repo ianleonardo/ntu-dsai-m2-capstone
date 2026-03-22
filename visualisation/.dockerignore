@@ -1,0 +1,4 @@
+# Avoid copying local uv env or bytecode into the image
+backend/.venv
+**/__pycache__
+**/*.pyc
