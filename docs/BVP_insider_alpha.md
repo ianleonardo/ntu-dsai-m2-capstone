@@ -39,7 +39,7 @@ Insider Alpha moves beyond anecdotal observation to systematic execution.
 - **Risk Mitigation:** By highlighting "Insider Sales" (particularly isolated sales by the CEO), the platform serves as an early warning system for downside risk, allowing for portfolio hedging or exit before negative earnings surprises.
 
 ### B. Efficiency: Streamlining Operational Workflows
-The S&P 500 generates over 15,000 Form 4 filings annually. Manual analysis is a resource sink. Insider Alpha provides:
+The S&P 500 generates over 40,000 Form 4 filings annually. Manual analysis is a resource sink. Insider Alpha provides:
 - **Noise Filtering:** The algorithm automatically excludes non-discretionary trades (e.g., stock grants, tax sales), eliminating false positives and allowing PMs to focus only on opportunistic trades where insiders are risking their own capital.
 - **Visualization:** A unified dashboard replaces the need to navigate the archaic SEC EDGAR database, providing normalized, sortable views of buying/selling trends across the S&P 500 sectors.
 
