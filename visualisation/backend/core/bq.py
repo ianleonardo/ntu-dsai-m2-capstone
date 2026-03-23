@@ -19,3 +19,7 @@ def sp500_stock_daily() -> str:
 def dim_sec_reporting_owner() -> str:
     """dbt `dim_sec_reporting_owner` — owner-level rows for /clusters/breakdown (RPTOWNER* columns)."""
     return fqtn("dim_sec_reporting_owner")
+
+def dim_sp500_reporting_owner() -> str:
+    """dbt `dim_sp500_reporting_owner` — S&P 500 restricted reporting owners."""
+    return fqtn("dim_sp500_reporting_owner")

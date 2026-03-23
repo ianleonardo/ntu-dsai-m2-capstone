@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from core.bigquery import query_bigquery
-from core.bq import dim_sec_reporting_owner, fqtn, sp500_mart, sp500_stock_daily
+from core.bq import dim_sec_reporting_owner, dim_sp500_reporting_owner, fqtn, sp500_mart, sp500_stock_daily
 from core.config import settings
 from core.cache import (
     get_cached_item,
@@ -450,6 +450,9 @@ def fetch_transactions_payload(
     ticker: Optional[str] = None,
     search: Optional[str] = None,
     min_value: float = 0.0,
+    max_value: Optional[float] = None,
+    sector: Optional[str] = None,
+    role: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     page: int = 1,
@@ -465,7 +468,7 @@ def fetch_transactions_payload(
         _safe_ticker(ticker) if ticker else None,
         search,
     )
-    cache_key = f"tx_v11:{start_date}:{end_date}:{ck_frag}:{min_value}:{page}:{page_size}"
+    cache_key = f"tx_v12:{start_date}:{end_date}:{ck_frag}:{min_value}:{max_value}:{sector}:{role}:{page}:{page_size}"
     hit = get_transactions_cache(cache_key)
     if hit is not None:
         return hit
@@ -477,6 +480,22 @@ def fetch_transactions_payload(
     ]
     if min_value > 0:
         where_clauses.append(f"f.total_non_deriv_value >= {min_value}")
+    if max_value is not None:
+        where_clauses.append(f"f.total_non_deriv_value < {max_value}")
+
+    if sector and sector.strip():
+        sectors = [s.strip().replace("'", "''") for s in sector.split(",") if s.strip()]
+        if sectors:
+            in_list = ", ".join(f"LOWER('{s.lower()}')" for s in sectors)
+            where_clauses.append(f"LOWER(TRIM(f.issuer_gics_sector)) IN ({in_list})")
+
+    if role and role.strip():
+        roles = [r.strip().replace("'", "''") for r in role.split(",") if r.strip()]
+        if roles:
+            role_preds = [f"UPPER(f.reporting_owner_role_types) LIKE UPPER('%' || '{r}' || '%')" for r in roles]
+            pred_or = " OR ".join(role_preds)
+            where_clauses.append(f"({pred_or})")
+        
     if pred_sql != "TRUE":
         where_clauses.append(pred_sql)
 
@@ -549,6 +568,9 @@ async def get_transactions(
     ticker: Optional[str] = None,
     search: Optional[str] = None,
     min_value: float = 0.0,
+    max_value: Optional[float] = None,
+    sector: Optional[str] = None,
+    role: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     page: int = 1,
@@ -558,6 +580,9 @@ async def get_transactions(
         ticker=ticker,
         search=search,
         min_value=min_value,
+        max_value=max_value,
+        sector=sector,
+        role=role,
         start_date=start_date,
         end_date=end_date,
         page=page,
@@ -598,7 +623,7 @@ def _fetch_cluster_breakdown_payload(
                 f.TRANS_DATE AS trans_date,
                 {value_expr} AS amount_usd
             FROM {MART()} AS f
-            WHERE f.symbol_norm = '{safe_sym}'
+            WHERE UPPER(TRIM(COALESCE(f.ISSUERTRADINGSYMBOL, ''))) = '{safe_sym}'
               AND DATE_TRUNC(f.TRANS_DATE, WEEK(MONDAY)) = DATE('{ws}')
               AND f.TRANS_DATE BETWEEN DATE('{start_date}') AND DATE('{end_date}')
               AND {side_pred}
@@ -622,7 +647,9 @@ def _fetch_cluster_breakdown_payload(
         INNER JOIN {ro} AS ro ON ro.ACCESSION_NUMBER = fs.ACCESSION_NUMBER
         ORDER BY fs.trans_date ASC NULLS LAST, insider_name ASC
     """
-    cache_key = f"cluster_breakdown_v2:{side}:{safe_sym}:{ws}:{start_date}:{end_date}"
+    # Must match cluster list grain: /clusters groups by ISSUERTRADINGSYMBOL as ticker, not symbol_norm
+    # (symbol_norm can differ when the mart matched S&P via CIK).
+    cache_key = f"cluster_breakdown_v3:{side}:{safe_sym}:{ws}:{start_date}:{end_date}"
     hit = get_cluster_breakdown_cache(cache_key)
     if hit is not None:
         return hit
@@ -671,6 +698,10 @@ async def get_clusters(
     side: Literal["buy", "sell"] = "buy",
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
+    min_value: float = 0.0,
+    max_value: Optional[float] = None,
+    sector: Optional[str] = None,
+    role: Optional[str] = None,
     min_filings: int = Query(2, ge=2, le=20),
     limit: int = Query(50, ge=1, le=200),
     ticker: Optional[str] = None,
@@ -682,7 +713,7 @@ async def get_clusters(
         search,
     )
     cache_key = (
-        f"clusters_txn_v8:{side}:{start_date}:{end_date}:{min_filings}:{limit}:{ck_frag}"
+        f"clusters_txn_v9:{side}:{start_date}:{end_date}:{min_filings}:{limit}:{ck_frag}:{min_value}:{max_value}:{sector}:{role}"
     )
     hit = get_clusters_cache(cache_key)
     if hit is not None:
@@ -700,6 +731,22 @@ async def get_clusters(
         )
         value_expr = "COALESCE(NULLIF(f.est_dispose_value, 0), IFNULL(f.non_deriv_value_disposed, 0), 0)"
         shares_expr = "IFNULL(f.non_deriv_shares_disposed, 0)"
+        
+    extra_filters = []
+    if sector and sector.strip():
+        sectors = [s.strip().replace("'", "''") for s in sector.split(",") if s.strip()]
+        if sectors:
+            in_list = ", ".join(f"LOWER('{s.lower()}')" for s in sectors)
+            extra_filters.append(f"LOWER(TRIM(f.issuer_gics_sector)) IN ({in_list})")
+
+    if role and role.strip():
+        roles = [r.strip().replace("'", "''") for r in role.split(",") if r.strip()]
+        if roles:
+            role_preds = [f"UPPER(f.reporting_owner_role_types) LIKE UPPER('%' || '{r}' || '%')" for r in roles]
+            pred_or = " OR ".join(role_preds)
+            extra_filters.append(f"({pred_or})")
+        
+    extra_sql = f" AND {' AND '.join(extra_filters)}" if extra_filters else ""
 
     ro_tbl = dim_sec_reporting_owner()
     query = f"""
@@ -718,6 +765,7 @@ async def get_clusters(
             WHERE f.TRANS_DATE BETWEEN DATE('{start_date}') AND DATE('{end_date}')
               AND {side_pred}
               AND ({ticker_search_sql})
+              {extra_sql}
         ),
         filing_week_keys AS (
             SELECT DISTINCT
@@ -753,6 +801,8 @@ async def get_clusters(
             FROM filings
             GROUP BY ticker, week_start
             HAVING COUNT(DISTINCT ACCESSION_NUMBER) >= {min_filings}
+            {f" AND SUM(cluster_line_value) >= {min_value}" if min_value > 0 else ""}
+            {f" AND SUM(cluster_line_value) < {max_value}" if max_value is not None else ""}
         )
         SELECT
             a.ticker,
@@ -982,7 +1032,7 @@ def build_search_directory_insiders() -> List[dict]:
         return cached
 
     mart = MART()
-    dim = fqtn("dim_sec_reporting_owner")
+    dim = dim_sp500_reporting_owner()
     insiders_df = query_bigquery(
         f"""
         WITH mart_names AS (

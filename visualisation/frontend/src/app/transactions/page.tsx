@@ -4,9 +4,9 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } fro
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import TransactionTable from "@/components/TransactionTable";
-import DateRangePicker from "@/components/DateRangePicker";
-import DirectorySearchBar from "@/components/DirectorySearchBar";
+import UnifiedFilterBar from "@/components/UnifiedFilterBar";
 import { api } from "@/services/api";
+import { loadUnifiedFilters, sizeTierToValues, UnifiedFiltersState, DEFAULT_FILTERS } from "@/lib/unifiedFiltersStorage";
 import {
   loadStoredDateRange,
   saveStoredDateRange,
@@ -24,9 +24,8 @@ const PAGE_SIZE = 50;
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchInput, setSearchInput] = useState("");
   const [dateRange, setDateRange] = useState(() => defaultStoredDateRange());
-  const [appliedSearch, setAppliedSearch] = useState("");
+  const [appliedFilters, setAppliedFilters] = useState<UnifiedFiltersState>(DEFAULT_FILTERS);
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState<number | null>(null);
@@ -39,6 +38,7 @@ export default function TransactionsPage() {
       setDateRange(stored);
       setAppliedRange(stored);
     }
+    setAppliedFilters(loadUnifiedFilters());
   }, []);
 
   useEffect(() => {
@@ -67,18 +67,27 @@ export default function TransactionsPage() {
   }, []);
 
   const appliedFilter = useMemo(
-    () => transactionsQueryFromInput(appliedSearch),
-    [appliedSearch]
+    () => transactionsQueryFromInput(appliedFilters.search),
+    [appliedFilters.search]
   );
+
+  // Stable serialized keys so React detects changes when array contents change
+  const sectorKey = appliedFilters.sector.join(",");
+  const roleKey = appliedFilters.role.join(",");
 
   const loadTransactions = useCallback(async () => {
     if (!appliedRange.start || !appliedRange.end) return;
     setLoading(true);
     try {
+      const sizeReq = sizeTierToValues(appliedFilters.size);
       const data = await api.getTransactions({
         startDate: appliedRange.start,
         endDate: appliedRange.end,
         search: appliedFilter.search,
+        sector: appliedFilters.sector.length === 0 ? undefined : appliedFilters.sector,
+        role: appliedFilters.role.length === 0 ? undefined : appliedFilters.role,
+        min_value: sizeReq.min_value,
+        max_value: sizeReq.max_value,
         page,
         page_size: PAGE_SIZE,
       });
@@ -91,7 +100,7 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedRange.start, appliedRange.end, appliedFilter.search, page]);
+  }, [appliedRange.start, appliedRange.end, appliedFilter.search, sectorKey, roleKey, appliedFilters.size, page]);
 
   useEffect(() => {
     void loadTransactions();
@@ -99,10 +108,10 @@ export default function TransactionsPage() {
 
   const handleApply = useCallback(() => {
     saveStoredDateRange(dateRange);
-    setAppliedSearch(searchInput.trim());
+    setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
     setPage(1);
-  }, [dateRange, searchInput]);
+  }, [dateRange]);
 
   const totalPages =
     totalRows != null ? Math.max(1, Math.ceil(totalRows / PAGE_SIZE)) : null;
@@ -117,28 +126,12 @@ export default function TransactionsPage() {
             Detailed Transactions
           </h1>
 
-          <div className="flex flex-col gap-3 w-full lg:w-auto lg:min-w-[32rem]">
-            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-              <DirectorySearchBar value={searchInput} onChange={setSearchInput} className="w-full" />
-              <DateRangePicker value={dateRange} onChange={handleDateRange} />
-              <button
-                type="button"
-                onClick={handleApply}
-                disabled={loading}
-                className={cn(
-                  "shrink-0 px-6 py-2.5 rounded-xl text-sm font-bold shadow transition-colors",
-                  "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
-                )}
-              >
-                {loading ? "Loading…" : "Apply"}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Set search and date range, then Apply. Use commas, semicolons, or new lines for multiple items: symbols
-              (e.g. <span className="font-mono">AAPL, MSFT</span>) match those tickers; other tokens match company or
-              insider text. Directory picks append to the box.
-            </p>
-          </div>
+          <UnifiedFilterBar 
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRange}
+            onApply={handleApply}
+            loading={loading}
+          />
         </div>
 
         {loading ? (
@@ -154,7 +147,7 @@ export default function TransactionsPage() {
                     <span className="text-foreground font-medium tabular-nums">{totalRows.toLocaleString()}</span>{" "}
                     filing{totalRows === 1 ? "" : "s"} in range (by transaction date)
                   </>
-                ) : appliedSearch.trim() ? (
+                ) : appliedFilters.search.trim() ? (
                   <>
                     Filtered search — page <span className="text-foreground font-medium tabular-nums">{page}</span>
                     {hasMore ? " · more pages below" : " · end of results"}

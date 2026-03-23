@@ -111,6 +111,12 @@ reporting_owner_enriched AS (
         RPTOWNERNAME,
         TRIM(RPTOWNER_TITLE) AS owner_title,
         CASE
+            -- Title-based detection takes priority for C-suite roles
+            WHEN REGEXP_CONTAINS(UPPER(TRIM(RPTOWNER_TITLE)), r'\bCEO\b|CHIEF EXECUTIVE') THEN 'CEO'
+            WHEN REGEXP_CONTAINS(UPPER(TRIM(RPTOWNER_TITLE)), r'\bCFO\b|CHIEF FINANCIAL') THEN 'CFO'
+            WHEN REGEXP_CONTAINS(UPPER(TRIM(RPTOWNER_TITLE)), r'\bCOB\b|CHAIRMAN OF THE BOARD|CHAIR OF THE BOARD') THEN 'COB (Chairman)'
+            WHEN REGEXP_CONTAINS(UPPER(TRIM(RPTOWNER_TITLE)), r'\bCXO\b|CHIEF \w+ OFFICER') THEN 'Officer (C-Suite)'
+            -- Relationship-based fallback
             WHEN LOWER(RPTOWNER_RELATIONSHIP) LIKE '%director%'
                 AND LOWER(RPTOWNER_RELATIONSHIP) LIKE '%officer%' THEN 'Director & Officer'
             WHEN LOWER(RPTOWNER_RELATIONSHIP) LIKE '%director%' THEN 'Director'

@@ -2,8 +2,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
-import DateRangePicker from "@/components/DateRangePicker";
-import DirectorySearchBar from "@/components/DirectorySearchBar";
+import UnifiedFilterBar from "@/components/UnifiedFilterBar";
 import { cn, formatIsoDateLabel } from "@/lib/utils";
 import { api } from "@/services/api";
 import {
@@ -17,6 +16,7 @@ import {
   saveClustersUiPersisted,
   type ClusterSortKey,
 } from "@/lib/clustersUiStorage";
+import { loadUnifiedFilters, sizeTierToValues, UnifiedFiltersState, DEFAULT_FILTERS } from "@/lib/unifiedFiltersStorage";
 import { transactionsQueryFromInput } from "@/lib/transactionsFilter";
 import {
   ensureSearchDirectoryLoaded,
@@ -31,6 +31,7 @@ import {
   formatUsdSmart,
 } from "@/lib/transactionRowModel";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronUp, Flame, Info } from "lucide-react";
+import CandlestickModal from "@/components/CandlestickModal";
 
 type ClusterRow = {
   ticker: string;
@@ -217,9 +218,8 @@ export default function ClustersPage() {
   const ui0 = defaultClustersUiPersisted();
   const [side, setSide] = useState<"buy" | "sell">(ui0.side);
   const [minFilings, setMinFilings] = useState(ui0.minFilings);
-  const [searchInput, setSearchInput] = useState(ui0.searchInput);
   const [dateRange, setDateRange] = useState(() => defaultStoredDateRange());
-  const [appliedSearch, setAppliedSearch] = useState(ui0.appliedSearch);
+  const [appliedFilters, setAppliedFilters] = useState<UnifiedFiltersState>(DEFAULT_FILTERS);
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
   const [rows, setRows] = useState<ClusterRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -232,6 +232,7 @@ export default function ClustersPage() {
   const breakdownRef = useRef(breakdownByKey);
   breakdownRef.current = breakdownByKey;
   const [breakdownLoadingKey, setBreakdownLoadingKey] = useState<string | null>(null);
+  const [selectedChart, setSelectedChart] = useState<{ ticker: string; transDate: string } | null>(null);
 
   useLayoutEffect(() => {
     const stored = loadStoredDateRange();
@@ -243,10 +244,9 @@ export default function ClustersPage() {
     setSide(p.side);
     setMinFilings(p.minFilings);
     setPriceBelowCostOnly(p.priceBelowCostOnly);
-    setSearchInput(p.searchInput);
-    setAppliedSearch(p.appliedSearch);
     setSortKey(p.sortKey);
     setSortDir(p.sortDir);
+    setAppliedFilters(loadUnifiedFilters());
   }, []);
 
   useEffect(() => {
@@ -254,12 +254,12 @@ export default function ClustersPage() {
       side,
       minFilings,
       priceBelowCostOnly,
-      searchInput,
-      appliedSearch,
+      searchInput: "",
+      appliedSearch: "",
       sortKey,
       sortDir,
     });
-  }, [side, minFilings, priceBelowCostOnly, searchInput, appliedSearch, sortKey, sortDir]);
+  }, [side, minFilings, priceBelowCostOnly, sortKey, sortDir]);
 
   useEffect(() => {
     let cancelled = false;
@@ -287,14 +287,19 @@ export default function ClustersPage() {
   }, []);
 
   const appliedFilter = useMemo(
-    () => transactionsQueryFromInput(appliedSearch),
-    [appliedSearch]
+    () => transactionsQueryFromInput(appliedFilters.search),
+    [appliedFilters.search]
   );
+
+  // Stable serialized keys so React detects changes when array contents change
+  const clusterSectorKey = appliedFilters.sector.join(",");
+  const clusterRoleKey = appliedFilters.role.join(",");
 
   const loadClusters = useCallback(async () => {
     if (!appliedRange.start || !appliedRange.end) return;
     setLoading(true);
     try {
+      const sizeReq = sizeTierToValues(appliedFilters.size);
       const res = await api.getClusters({
         side,
         startDate: appliedRange.start,
@@ -302,6 +307,10 @@ export default function ClustersPage() {
         min_filings: minFilings,
         limit: 150,
         search: appliedFilter.search,
+        sector: appliedFilters.sector.length === 0 ? undefined : appliedFilters.sector,
+        role: appliedFilters.role.length === 0 ? undefined : appliedFilters.role,
+        min_value: sizeReq.min_value,
+        max_value: sizeReq.max_value,
       });
       const data = res.data;
       setRows(Array.isArray(data) ? (data as ClusterRow[]) : []);
@@ -319,6 +328,9 @@ export default function ClustersPage() {
     appliedRange.end,
     minFilings,
     appliedFilter.search,
+    clusterSectorKey,
+    clusterRoleKey,
+    appliedFilters.size,
   ]);
 
   useEffect(() => {
@@ -327,9 +339,9 @@ export default function ClustersPage() {
 
   const handleApply = useCallback(() => {
     saveStoredDateRange(dateRange);
-    setAppliedSearch(searchInput.trim());
+    setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
-  }, [dateRange, searchInput]);
+  }, [dateRange]);
 
   const onSort = useCallback(
     (k: ClusterSortKey) => {
@@ -425,27 +437,12 @@ export default function ClustersPage() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 w-full lg:w-auto lg:min-w-[32rem]">
-            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-              <DirectorySearchBar value={searchInput} onChange={setSearchInput} className="w-full" />
-              <DateRangePicker value={dateRange} onChange={handleDateRange} />
-              <button
-                type="button"
-                onClick={handleApply}
-                disabled={loading}
-                className={cn(
-                  "shrink-0 px-6 py-2.5 rounded-xl text-sm font-bold shadow transition-colors",
-                  "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none"
-                )}
-              >
-                {loading ? "Loading…" : "Apply"}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Set search and date range, then Apply. Multiple symbols or phrases: separate with commas, semicolons, or new
-              lines (same as Detailed Transactions). Directory picks append to the box.
-            </p>
-          </div>
+          <UnifiedFilterBar 
+            dateRange={dateRange}
+            onDateRangeChange={handleDateRange}
+            onApply={handleApply}
+            loading={loading}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -607,7 +604,21 @@ export default function ClustersPage() {
                         <React.Fragment key={`${r.ticker}-${r.week_start}-${i}`}>
                           <tr className="border-b border-border hover:bg-muted/30">
                             <td className="px-2 py-3 pl-2">
-                              <div className="font-black text-primary text-sm sm:text-base">{r.ticker}</div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (r.ticker && r.last_trans) {
+                                    setSelectedChart({
+                                      ticker: r.ticker.trim(),
+                                      transDate: new Date(isoDay(r.last_trans) + "T12:00:00Z").toISOString(),
+                                    });
+                                  }
+                                }}
+                                className="font-black text-primary text-sm sm:text-base hover:underline text-left overflow-hidden text-ellipsis"
+                                title={`View ${r.ticker} chart`}
+                              >
+                                {r.ticker}
+                              </button>
                               <div className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.company}</div>
                             </td>
                             <td className="px-2 py-3">
@@ -676,9 +687,11 @@ export default function ClustersPage() {
                                   )}
                                   {!bdLoading && breakdown && breakdown.length === 0 && (
                                     <p className="text-sm text-muted-foreground py-2">
-                                      No owner-level rows (ensure dbt has built{" "}
-                                      <code className="text-xs bg-background px-1 rounded">dim_sec_reporting_owner</code> in
-                                      BigQuery).
+                                      No owner-level rows for this cluster window. If the table is missing, run{" "}
+                                      <code className="text-xs bg-background px-1 rounded">dbt build</code> so{" "}
+                                      <code className="text-xs bg-background px-1 rounded">dim_sec_reporting_owner</code>{" "}
+                                      exists in BigQuery. Otherwise check the browser console for API errors (failed
+                                      requests are shown as empty here).
                                     </p>
                                   )}
                                   {!bdLoading && breakdown && breakdown.length > 0 && (
@@ -731,6 +744,14 @@ export default function ClustersPage() {
           </div>
         )}
       </main>
+
+      {selectedChart && (
+        <CandlestickModal
+          ticker={selectedChart.ticker}
+          transDate={selectedChart.transDate}
+          onClose={() => setSelectedChart(null)}
+        />
+      )}
     </div>
   );
 }

@@ -241,7 +241,7 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
               const sizeLabel = usd > 0 ? txnSizeBadge(usd) : "";
               const sector = sectorChip(row);
               const roles = rolePills(row);
-              const showBadges = Boolean(sizeLabel || sector);
+              const showBadges = Boolean(sector);
 
               return (
                 <tr
@@ -268,11 +268,6 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
                     ) : null}
                     {showBadges ? (
                       <div className="flex flex-wrap gap-0.5 mt-1">
-                        {sizeLabel ? (
-                          <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full border border-border bg-secondary/60 text-muted-foreground">
-                            {sizeLabel}
-                          </span>
-                        ) : null}
                         {sector ? (
                           <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full border border-primary/30 text-primary/90 truncate max-w-full">
                             {sector}
@@ -329,6 +324,13 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
                     <div className="font-bold text-foreground truncate" title={formatUsdSmart(usd)}>
                       {formatUsdSmart(usd)}
                     </div>
+                    {sizeLabel ? (
+                      <div className="mt-0.5 flex justify-end">
+                        <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full border border-border bg-secondary/60 text-muted-foreground">
+                          {sizeLabel}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
                       {pps != null ? formatUsdPerShare(pps) : "—"}
                     </div>

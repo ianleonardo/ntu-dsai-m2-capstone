@@ -33,7 +33,7 @@ The pipeline follows a modern ELT (Extract, Load, Transform) architecture with a
 The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
 
 1. **Data Ingestion (Extract & Load)**: 
-   - **Meltano** extracts raw data from multiple sources (SEC EDGAR, Yahoo Finance, S&P data)
+   - **Meltano** extracts raw data from multiple sources (SEC EDGAR, Yahoo Finance, DataHub)
    - Loads processed data into Google BigQuery staging tables with optimized clustering
    - Handles both batch and incremental data updates
 

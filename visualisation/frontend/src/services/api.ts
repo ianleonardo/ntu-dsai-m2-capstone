@@ -41,6 +41,9 @@ export const api = {
     startDate?: string,
     endDate?: string,
     min_value?: number,
+    max_value?: number,
+    sector?: string[],
+    role?: string[],
     page?: number,
     page_size?: number,
   }) => {
@@ -50,6 +53,9 @@ export const api = {
     if (params.startDate) searchParams.append('start_date', params.startDate);
     if (params.endDate) searchParams.append('end_date', params.endDate);
     if (params.min_value !== undefined) searchParams.append('min_value', params.min_value.toString());
+    if (params.max_value !== undefined) searchParams.append('max_value', params.max_value.toString());
+    if (params.sector?.length) searchParams.append('sector', params.sector.join(','));
+    if (params.role?.length) searchParams.append('role', params.role.join(','));
     if (params.page) searchParams.append('page', params.page.toString());
     if (params.page_size != null) searchParams.append('page_size', String(params.page_size));
 
@@ -123,6 +129,10 @@ export const api = {
     limit?: number;
     ticker?: string;
     search?: string;
+    min_value?: number;
+    max_value?: number;
+    sector?: string[];
+    role?: string[];
   }) => {
     const sp = new URLSearchParams();
     sp.append('side', params.side);
@@ -132,6 +142,10 @@ export const api = {
     if (params.limit != null) sp.append('limit', String(params.limit));
     if (params.ticker) sp.append('ticker', params.ticker);
     if (params.search) sp.append('search', params.search);
+    if (params.min_value !== undefined) sp.append('min_value', String(params.min_value));
+    if (params.max_value !== undefined) sp.append('max_value', String(params.max_value));
+    if (params.sector?.length) sp.append('sector', params.sector.join(','));
+    if (params.role?.length) sp.append('role', params.role.join(','));
     const response = await fetch(`${API_BASE_URL}/clusters?${sp.toString()}`);
     return parseJsonResponse(response, "clusters") as Promise<{
       data?: unknown[];
