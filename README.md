@@ -576,3 +576,8 @@ This project demonstrates modern data engineering best practices:
 - Comprehensive testing and documentation
 - Scalable architecture design
 - Basic logging and pipeline monitoring
+
+### Production Live URL
+- Frontend: https://insideralpha.theluwak.com/
+- API: https://insider-backend-1091217007062.asia-southeast1.run.app/docs 
+
