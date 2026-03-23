@@ -207,3 +207,18 @@ marimo/_lsp/
 __marimo__/
 
 .DS_Store
+
+data/
+
+# Dagster storage
+.dagster/
+.tmp_dagster_home_*
+
+# Meltano local state / generated artifacts
+dataprocessing/meltano_ingestion/.meltano/
+dataprocessing/meltano_ingestion/staging/
+
+# dbt packages (vendored deps via dbt deps)
+dataprocessing/dbt_insider_transactions/dbt_packages/
+
+visualisation/wireframe/

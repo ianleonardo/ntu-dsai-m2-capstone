@@ -1,0 +1,12 @@
+dbt_insider_transactions:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: ntu-dsai-488112
+      dataset: insider_transactions
+      threads: 1
+      timeout_seconds: 300
+      location: asia-southeast1
+      priority: interactive

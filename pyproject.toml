@@ -1,0 +1,69 @@
+[project]
+name = "ntu-dsai-m2-capstone"
+version = "0.1.0"
+description = "NTU DSAI Module 2 Capstone Project"
+authors = [
+    {name = "Ian Leonardo", email = "ian@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9,<3.14"
+dependencies = [
+    "requests>=2.28.0",
+    "google-cloud-storage>=2.10.0",
+    "google-api-core>=2.11.0",
+    "python-dotenv>=1.0.0",
+    "dagster-dbt>=0.28.1",
+    "yfinance>=1.2.0",
+    "pandas>=2.3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+]
+meltano = [
+    "meltano>=3.0,<5",
+]
+dagster = [
+    "dagster>=1.12.0",
+    "dagster-cloud>=1.12.0",
+    "dagster-gcp>=0.28.0",
+    "dagster-postgres>=0.28.0",
+    "dagster-webserver>=1.12.0",
+    "dagster-dbt>=0.23.0",
+]
+dbt = [
+    "dbt-core>=1.7.0",
+    "dbt-bigquery>=1.7.0",
+]
+dbt-core = [
+    "dbt-bigquery>=1.10.2",
+]
+
+[dependency-groups]
+meltano = [
+    "meltano>=3.0,<5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["scripts"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.dagster]
+module_name = "dataprocessing.dagster_orchestration.repository"

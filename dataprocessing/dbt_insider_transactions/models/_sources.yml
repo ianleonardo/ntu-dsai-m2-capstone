@@ -1,0 +1,52 @@
+version: 2
+
+sources:
+  - name: insider_transactions
+    database: ntu-dsai-488112
+    schema: insider_transactions
+    tables:
+      - name: sec_submission
+        description: >-
+          SEC submissions loaded from TSV. ACCESSION_NUMBER is unique per filing in SEC feeds,
+          but this table may contain duplicate accessions after repeated loads (append-only ingestion).
+          Model dim_sec_submission dedupes to one row per ACCESSION_NUMBER.
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Filing accession (duplicates possible in raw table)"
+            tests:
+              - not_null
+
+      - name: sec_reportingowner
+        description: "SEC reporting owner rows (raw); cleaned in dim_sec_reporting_owner"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: RPTOWNERCIK
+            description: "Reporting owner CIK"
+            tests:
+              - not_null
+
+      - name: sec_nonderiv_trans
+        description: "SEC non-derivative transaction lines (raw); normalized in fct_sec_nonderiv_line"
+        columns:
+          - name: ACCESSION_NUMBER
+            description: "Foreign key to submission"
+          - name: NONDERIV_TRANS_SK
+            description: "Non-derivative transaction surrogate key"
+            tests:
+              - not_null
+          - name: TRANS_SHARES
+            description: "Transaction share count (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
+          - name: TRANS_PRICEPERSHARE
+            description: "Price per share (must be non-negative when numeric)"
+            tests:
+              - non_negative_or_null
+
+      # Meltano: meltano run load-sp500-companies (tap-jsonl-sp500, stream SP500_COMPANIES).
+      # Target table name varies by loader; default assumes lowercase. Override with:
+      #   dbt run --vars '{"sp500_companies_identifier": "YOUR_TABLE_NAME"}'
+      - name: sp500_companies
+        identifier: "{{ var('sp500_companies_identifier', 'sp500_companies') }}"
+        description: "S&P 500 constituents (symbol, CIK, sector) for filtering insider filings"

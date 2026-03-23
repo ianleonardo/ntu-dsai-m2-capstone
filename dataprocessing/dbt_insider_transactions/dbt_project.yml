@@ -1,0 +1,27 @@
+name: 'dbt_insider_transactions'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_insider_transactions'
+
+# Override if BigQuery table name differs (check `bq ls` / console after meltano load-sp500-companies).
+vars:
+  sp500_companies_identifier: sp500_companies
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["data"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"  
+clean-targets:         
+  - "target"
+  - "dbt_packages"
+
+models:
+  dbt_insider_transactions:
+    +materialized: view
+    marts:
+      +materialized: view

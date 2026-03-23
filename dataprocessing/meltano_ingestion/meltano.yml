@@ -1,0 +1,102 @@
+# Meltano project: SEC data (insider forms + company tickers) — GCS/JSON to BigQuery
+# See docs/meltano_sec_ingestion_guide.md for usage.
+
+default_environment: dev
+environments:
+  - name: dev
+
+plugins:
+  extractors:
+  - name: tap-csv
+    variant: meltanolabs
+    pip_url: git+https://github.com/MeltanoLabs/tap-csv.git
+    config:
+      files:
+      - entity: SEC_SUBMISSION
+        path: staging/SUBMISSION.csv
+        keys: [ACCESSION_NUMBER]
+        delimiter: "\t"
+      - entity: SEC_REPORTINGOWNER
+        path: staging/REPORTINGOWNER.csv
+        keys: [ACCESSION_NUMBER, RPTOWNERCIK]
+        delimiter: "\t"
+      - entity: SEC_NONDERIV_TRANS
+        path: staging/NONDERIV_TRANS.csv
+        keys: [ACCESSION_NUMBER, NONDERIV_TRANS_SK]
+        delimiter: "\t"
+
+  - name: tap-jsonl
+    namespace: tap_jsonl
+    pip_url: tap-jsonl
+    executable: tap-jsonl
+    capabilities:
+      - discover
+      - catalog
+    config:
+      path: staging/company_tickers.jsonl
+      stream_name: SEC_COMPANY_TICKERS
+      primary_keys: ["ticker"]
+      encoding: utf-8
+
+  - name: tap-jsonl-sp500
+    namespace: tap_jsonl
+    pip_url: tap-jsonl
+    executable: tap-jsonl
+    capabilities:
+      - discover
+      - catalog
+    config:
+      path: staging/sp500_companies.jsonl
+      stream_name: SP500_COMPANIES
+      primary_keys: ["symbol"]
+      encoding: utf-8
+
+  - name: tap-jsonl-sp500-stock-daily
+    namespace: tap_jsonl
+    pip_url: tap-jsonl
+    executable: tap-jsonl
+    capabilities:
+      - discover
+      - catalog
+    config:
+      path: staging/sp500_stock_daily.jsonl
+      stream_name: SP500_STOCK_DAILY
+      primary_keys: ["symbol", "date"]
+      encoding: utf-8
+
+  loaders:
+  - name: target-bigquery
+    variant: z3z1ma
+    pip_url: git+https://github.com/z3z1ma/target-bigquery.git setuptools<70
+    config:
+      project: ntu-dsai-488112
+      dataset: insider_transactions
+      location: asia-southeast1
+      partition_granularity: year
+      denormalized: true
+      flattening_enabled: true
+      flattening_max_depth: 1
+      method: batch_job
+      batch_size: 500000
+      # Cluster on tap primary keys (default is _sdc_batched_at only). For SP500_STOCK_DAILY
+      # (keys: symbol, date) this co-locates rows by symbol — better for per-ticker latest-close joins.
+      cluster_on_key_properties: true
+      # Upsert by primary key: accumulate multiple runs (e.g. multiple years) without duplicate keys
+      upsert: true
+        # credentials_path set via TARGET_BIGQUERY_CREDENTIALS_PATH in .env
+
+jobs:
+  - name: load-sec-insider
+    tasks:
+      - tap-csv target-bigquery
+  - name: load-sec-tickers
+    tasks:
+      - tap-jsonl target-bigquery
+  - name: load-sp500-companies
+    tasks:
+      - tap-jsonl-sp500 target-bigquery
+  - name: load-sp500-stock-daily
+    tasks:
+      - tap-jsonl-sp500-stock-daily target-bigquery
+
+project_id: 09eda458-11f8-4143-b6f6-105670ea9e19

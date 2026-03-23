@@ -1,0 +1,91 @@
+version: 2
+
+models:
+  - name: dim_sec_submission
+    description: "SEC filing dimension; one row per ACCESSION_NUMBER after deduping raw loads"
+    columns:
+      - name: ACCESSION_NUMBER
+        description: "Primary key — unique after deduplication"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_sp500_company
+    description: "S&P 500 constituent dimension (symbol_norm, CIK, sector)"
+
+  - name: fct_sec_nonderiv_line
+    description: "Non-derivative transaction line fact (grain: ACCESSION_NUMBER + NONDERIV_TRANS_SK)"
+    columns:
+      - name: ACCESSION_NUMBER
+        tests:
+          - not_null
+      - name: NONDERIV_TRANS_SK
+        tests:
+          - not_null
+
+  - name: dim_sec_reporting_owner
+    description: >-
+      Reporting-owner rows with SEC column names plus role_type / is_insider.
+      Queried by FastAPI cluster breakdown (RPTOWNER* columns).
+    columns:
+      - name: RPTOWNERCIK
+        tests:
+          - not_null
+      - name: RPTOWNERNAME
+        tests:
+          - not_null
+      - name: RPTOWNER_RELATIONSHIP
+        tests:
+          - not_null
+      - name: role_type
+        description: "Consolidated role type (Director, Officer, etc.)"
+      - name: is_insider
+        description: "1 if director, officer, or 10% owner relationship"
+
+  - name: sp500_insider_transactions
+    description: >-
+      Same grain as fct_insider_transactions, filtered to S&P 500 issuers (dim_sp500_company).
+      Materialized BigQuery table: partition TRANS_DATE by year, cluster TRANS_DATE + symbol_norm.
+      Denormalized symbol_norm and issuer_gics_sector for fast API reads.
+    columns:
+      - name: symbol_norm
+        description: "Uppercased S&P trading symbol from constituent match (API ticker filter)"
+      - name: issuer_gics_sector
+        description: "GICS sector from dim_sp500_company at build time"
+
+  - name: fct_insider_transactions
+    description: "Fact (view) at filing grain; non-derivative transactions only (no NONDERIV_HOLDING table)"
+    columns:
+      - name: ACCESSION_NUMBER
+        description: "Primary key - SEC accession number"
+        tests:
+          - unique
+          - not_null
+      - name: filing_date_key
+        description: "Filing date as YYYYMMDD integer (NULL if FILING_DATE is NULL)"
+      - name: period_report_date_key
+        description: "Period of report as YYYYMMDD integer (NULL if PERIOD_OF_REPORT is NULL)"
+      - name: TRANS_DATE
+        description: >-
+          Minimum non-null TRANSACTION_DATE on non-derivative transaction lines for the filing;
+          NULL if none
+      - name: total_transaction_count
+        description: "Count of non-derivative transaction lines (same as non_deriv_transaction_count)"
+      - name: total_shares_acquired
+        description: "Non-derivative shares acquired (same as non_deriv_shares_acquired)"
+      - name: total_shares_disposed
+        description: "Non-derivative shares disposed (same as non_deriv_shares_disposed)"
+      - name: total_non_deriv_value
+        description: "Total value of non-derivative transactions"
+      - name: reporting_owner_count
+        description: "Count of distinct reporting owners (by RPTOWNERCIK on dim_sec_reporting_owner)"
+      - name: reporting_owner_names
+        description: "Distinct owner names on the filing, concatenated"
+      - name: reporting_owner_role_types
+        description: "Distinct role_type values (Director, Officer, etc.), concatenated"
+      - name: reporting_owner_titles
+        description: "Distinct non-empty titles on the filing, concatenated"
+      - name: transaction_type_from_code
+        description: >-
+          Distinct Purchase/Sale labels from non-derivative transaction codes (P/S), comma-separated;
+          NULL if no P/S rows
