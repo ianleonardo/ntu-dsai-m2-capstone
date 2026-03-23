@@ -20,8 +20,8 @@ export default function Navbar() {
 
   const navLinks = [
     { label: "Overview", href: "/" },
-    { label: "Detailed Transactions", href: "/transactions" },
     { label: "Clusters", href: "/clusters" },
+    { label: "Detailed Transactions", href: "/transactions" },
   ];
 
   return (

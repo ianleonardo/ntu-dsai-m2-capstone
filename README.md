@@ -64,17 +64,18 @@ The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
    - **Data Volume**: ~10M+ records per year across all public companies
 
 2. **S&P 500 Market Data**
+   - **Source**: DataHub S&P 500 constituents (https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv)
+   - **Content**: Company symbols, names, GICS sectors, CIK mappings, headquarters locations
+   - **Update Frequency**: Monthly (configurable via script)
+   - **Ingestion Method**: `scripts/download_sync_sp500_companies.py` with JSONL conversion for Meltano
+   - **Data Volume**: ~500 constituents with full company metadata
+
+3. **Market Price Data**
    - **Source**: Yahoo Finance API via yfinance library
-   - **Content**: Daily OHLCV data, company profiles, sector classifications
+   - **Content**: Daily OHLCV data for S&P 500 constituents
    - **Update Frequency**: Daily (configurable)
    - **Ingestion Method**: `scripts/get_stock_data_yfinance.py` with incremental updates
    - **Data Volume**: ~500 constituents × daily price history
-
-3. **Company Reference Data**
-   - **Source**: SEC company tickers database
-   - **Content**: Company mappings, CIK numbers, exchange information
-   - **Update Frequency**: Monthly
-   - **Ingestion Method**: Automated sync via `scripts/sync_sec_company_tickers.py`
 
 #### Data Ingestion Architecture
 
@@ -117,11 +118,11 @@ Raw Data Sources
 The data warehouse follows a star schema pattern with optimized clustering:
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ dim_sec_        │    │ dim_sec_        │    │ dim_sp500_      │
-│ submission      │    │ reporting_owner │    │ company         │
-│                 │    │                 │    │                 │
-│ • ACCESSION_    │    │ • RPTOWNERCIK   │    │ • symbol_norm   │
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────┐
+│ dim_sec_        │    │ dim_sec_        │    │ dim_sp500_      │    │ dim_sp500_        │
+│ submission      │    │ reporting_owner │    │ company         │    │ reporting_owner   │
+│                 │    │                 │    │                 │    │                 │
+│ • ACCESSION_    │    │ • RPTOWNERCIK   │    │ • symbol_norm   │    │ • ACCESSION_     │
 │   NUMBER (PK)   │    │ • RPTOWNERNAME  │    │ • CIK           │
 │ • FILING_DATE   │    │ • role_type     │    │ • sector        │
 │ • ISSUER_INFO   │    │ • is_insider    │    │ • industry      │
@@ -218,6 +219,12 @@ The dbt transformation layer implements sophisticated financial data processing:
 - **Symbol Normalization**: Standardizes ticker symbols to uppercase
 - **CIK Mapping**: Links SEC CIK numbers to trading symbols
 - **Sector Classification**: GICS sector assignment for industry analysis
+- **Purpose**: Used to filter SEC insider transactions to S&P 500 companies only
+
+**`dim_sp500_reporting_owner`**:
+- **S&P 500 Filtering**: Subset of `dim_sec_reporting_owner` for S&P 500 insiders only
+- **Accession Filtering**: Only includes owners who transacted in S&P 500 companies
+- **Performance Optimization**: Enables efficient cluster analysis and breakdown queries
 
 #### 3. Fact Table Aggregations
 
@@ -311,6 +318,7 @@ The pipeline implements multi-layer data quality assurance:
 
 - **dim_sec_submission**: 2 tests (unique, not_null on primary key)
 - **dim_sec_reporting_owner**: 3 tests (not_null on key fields)
+- **dim_sp500_reporting_owner**: 2 tests (not_null on primary key, CIK)
 - **fct_sec_nonderiv_line**: 4 tests (not_null + business validation)
 - **fct_insider_transactions**: 2 tests (unique, not_null on primary key)
 - **Coverage**: 100% of critical business fields tested

@@ -755,6 +755,7 @@ async def get_clusters(
                 f.ACCESSION_NUMBER,
                 f.ISSUERTRADINGSYMBOL AS ticker,
                 f.ISSUERNAME AS company,
+                f.issuer_gics_sector AS issuer_gics_sector,
                 f.TRANS_DATE AS txn_date,
                 f.FILING_DATE AS filing_date,
                 f.reporting_owner_titles,
@@ -789,6 +790,7 @@ async def get_clusters(
             SELECT
                 ticker,
                 ANY_VALUE(company) AS company,
+                ANY_VALUE(issuer_gics_sector) AS issuer_gics_sector,
                 DATE_TRUNC(txn_date, WEEK(MONDAY)) AS week_start,
                 COUNT(DISTINCT ACCESSION_NUMBER) AS filing_count,
                 MIN(txn_date) AS first_trans,
@@ -807,6 +809,7 @@ async def get_clusters(
         SELECT
             a.ticker,
             a.company,
+            a.issuer_gics_sector,
             a.week_start,
             a.filing_count,
             a.first_trans,
@@ -841,6 +844,7 @@ async def get_clusters(
                 {
                     "ticker": r["ticker"] if pd.notna(r["ticker"]) else "",
                     "company": (r["company"] if pd.notna(r["company"]) else "") or "",
+                    "issuer_gics_sector": (r["issuer_gics_sector"] if pd.notna(r["issuer_gics_sector"]) else "") or "",
                     "filing_count": _pd_int(r["filing_count"]),
                     "insider_count": _pd_int(r["insider_count"]),
                     "week_start": ws.isoformat() if hasattr(ws, "isoformat") and pd.notna(ws) else str(ws),
