@@ -197,13 +197,42 @@ export default function CandlestickModal({ ticker, transDate, onClose }: Props) 
           </button>
         </div>
         
-        <div className="flex-1 relative w-full h-full bg-card p-4">
+        <div className="flex-1 relative w-full h-full bg-card p-4 flex flex-col">
+          <div className="mb-2 shrink-0 flex flex-wrap items-center gap-2 text-[10px] sm:text-xs">
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" aria-hidden />
+              Candle Up
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-sm bg-rose-500" aria-hidden />
+              Candle Down
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-[2px] w-3 rounded bg-yellow-500" aria-hidden />
+              SMA(200)
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-[2px] w-3 rounded bg-blue-500" aria-hidden />
+              MACD
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-[2px] w-3 rounded bg-orange-500" aria-hidden />
+              Signal
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-muted-foreground">
+              <span className="inline-block h-2 w-2 rounded-sm bg-emerald-500" aria-hidden />
+              <span className="inline-block h-2 w-2 rounded-sm bg-rose-500" aria-hidden />
+              Hist (+/-)
+            </span>
+          </div>
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-card/60 backdrop-blur-[1px] z-10 transition-opacity">
               <Loader2 className="w-8 h-8 animate-spin text-primary opacity-80" />
             </div>
           )}
-          <div ref={chartContainerRef} className="w-full h-full" />
+          <div className="relative flex-1 min-h-0">
+            <div ref={chartContainerRef} className="absolute inset-0" />
+          </div>
         </div>
       </div>
     </div>
