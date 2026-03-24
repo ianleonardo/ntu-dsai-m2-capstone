@@ -29,6 +29,7 @@ import {
   returnPctColorClass,
   formatUsdPerShare,
   formatUsdSmart,
+  txnSizeBadge,
 } from "@/lib/transactionRowModel";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronUp, Flame, Info } from "lucide-react";
 import CandlestickModal from "@/components/CandlestickModal";
@@ -36,6 +37,7 @@ import CandlestickModal from "@/components/CandlestickModal";
 type ClusterRow = {
   ticker: string;
   company: string;
+  issuer_gics_sector?: string;
   filing_count: number;
   insider_count: number;
   week_start: string;
@@ -71,12 +73,6 @@ function windowDays(first: string, last: string) {
   return Math.max(1, Math.round((b - a) / 86400000) + 1);
 }
 
-function currencyM(v: number) {
-  const m = v / 1_000_000;
-  if (m >= 1000) return `$${(m / 1000).toFixed(2)} B`;
-  return `$${m.toFixed(2)} M`;
-}
-
 /** Whole calendar days from filing date (local) to today. */
 function filingDaysAgo(iso: string): number | null {
   const day = isoDay(iso);
@@ -100,6 +96,13 @@ function formatFilingDaysAgo(iso: string) {
 
 function clusterKey(r: ClusterRow) {
   return `${(r.ticker || "").trim().toUpperCase()}|${isoDay(r.week_start)}`;
+}
+
+function clusterSectorChip(sector?: string): string | null {
+  const s = (sector || "").trim();
+  if (!s) return null;
+  const w = s.split(/\s+/)[0] || s;
+  return w.length > 12 ? `${w.slice(0, 11)}…` : w;
 }
 
 function execCeoCfo(roles: string, titles: string) {
@@ -595,6 +598,8 @@ export default function ClustersPage() {
                       const cost = r.implied_price_per_share;
                       const retPct = returnVsTxnPricePct(lastClose, cost ?? null);
                       const badges = execCeoCfo(r.roles, r.titles ?? "");
+                      const sizeLabel = r.cluster_value > 0 ? txnSizeBadge(r.cluster_value) : "";
+                      const sector = clusterSectorChip(r.issuer_gics_sector);
                       const key = clusterKey(r);
                       const open = expandedKey === key;
                       const breakdown = breakdownByKey.get(key);
@@ -620,6 +625,13 @@ export default function ClustersPage() {
                                 {r.ticker}
                               </button>
                               <div className="text-[10px] text-muted-foreground truncate max-w-[140px]">{r.company}</div>
+                              {sector ? (
+                                <div className="flex flex-wrap gap-0.5 mt-1">
+                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full border border-primary/30 text-primary/90 truncate max-w-full">
+                                    {sector}
+                                  </span>
+                                </div>
+                              ) : null}
                             </td>
                             <td className="px-2 py-3">
                               <div className="font-semibold text-foreground">
@@ -644,8 +656,15 @@ export default function ClustersPage() {
                                 {fmtClusterDate(r.first_trans)} – {fmtClusterDate(r.last_trans)}
                               </div>
                             </td>
-                            <td className={cn("px-2 py-3 text-right font-bold tabular-nums", valueCls)}>
-                              {currencyM(r.cluster_value)}
+                            <td className={cn("px-2 py-3 text-right tabular-nums", valueCls)}>
+                              <div className="font-bold">{formatUsdSmart(r.cluster_value)}</div>
+                              {sizeLabel ? (
+                                <div className="mt-0.5 flex justify-end">
+                                  <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full border border-border bg-secondary/60 text-muted-foreground">
+                                    {sizeLabel}
+                                  </span>
+                                </div>
+                              ) : null}
                             </td>
                             <td className="px-2 py-3 text-right align-top tabular-nums pr-2">
                               <div className="font-bold text-foreground">

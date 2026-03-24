@@ -10,6 +10,25 @@ models:
           - unique
           - not_null
 
+  - name: dim_sp500_reporting_owner
+    description: >-
+      S&P 500 filtered dimension of reporting owners who transacted 
+      in S&P 500 companies. Subset of dim_sec_reporting_owner 
+      with accession-based filtering for performance optimization.
+    columns:
+      - name: ACCESSION_NUMBER
+        description: "Primary key - SEC accession number"
+        tests:
+          - not_null
+      - name: RPTOWNERCIK
+        description: "Reporting owner CIK identifier"
+        tests:
+          - not_null
+      - name: RPTOWNERNAME
+        description: "Reporting owner name"
+        tests:
+          - not_null
+
   - name: dim_sp500_company
     description: "S&P 500 constituent dimension (symbol_norm, CIK, sector)"
 

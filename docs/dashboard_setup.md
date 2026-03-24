@@ -135,12 +135,29 @@ The Insider Alpha Dashboard provides:
    - Interactive charts using Lightweight Charts
    - Transaction volume analysis
    - Value trend visualization
+   - **Cluster Analysis**: Sector and Size filtering pills
+   - **Enhanced UI**: Consistent tab ordering (Clusters, then Detailed Transactions)
+
+### User Interface Features
+
+**Tab Navigation**:
+- **Clusters Tab**: Primary view for insider trading cluster analysis
+- **Detailed Transactions Tab**: Comprehensive transaction listing
+- **Overview Tab**: Market summary and statistics
+
+**Cluster Analysis Enhancements**:
+- **Sector Filter**: Pill-based sector selection (same as Detailed Transactions)
+- **Size Filter**: Transaction size filtering options
+- **Consistent UI**: Unified filtering interface across all views
+- **Performance**: Optimized queries using dim_sp500_reporting_owner
 
 ### API Endpoints
 
 The backend exposes several key endpoints:
 
-- `GET /api/transactions` - Paginated insider transactions
+- `GET /api/clusters` - Insider trading cluster analysis with sector and size filtering
+- `GET /api/clusters/breakdown` - Detailed cluster breakdown using dim_sp500_reporting_owner
+- `GET /api/transactions` - Paginated insider transactions with enhanced filtering
 - `GET /api/companies` - S&P 500 company directory
 - `GET /api/search/insiders` - Insider search functionality
 - `GET /api/search/stocks` - Stock search functionality
@@ -344,6 +361,3 @@ After setting up the dashboard:
 
 1. Explore the [API documentation](http://localhost:8000/docs)
 2. Browse the frontend interface at `http://localhost:3000`
-3. Review the data models in BigQuery
-4. Customize visualizations for your use case
-5. Set up automated data refresh schedules
