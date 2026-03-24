@@ -5,7 +5,8 @@
 This project is a comprehensive Stock Analytics Data Pipeline designed to ingest, process, and analyze financial market data and SEC insider trading information. Built as part of the NTU DSAI Module 2 Capstone, it automates the end-to-end flow from raw data extraction to analytics-ready models in Google BigQuery, complete with a modern dashboard UI for visualization and analysis.
 
 ### Architecture Overview
-The pipeline follows a modern ELT (Extract, Load, Transform) architecture with a microservices approach:
+
+The pipeline follows a modern ELT (Extract, Load, Transform) architecture orchestrated by Dagster:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -26,7 +27,7 @@ The pipeline follows a modern ELT (Extract, Load, Transform) architecture with a
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
-**Note**: The diagram shows the data flow architecture. dbt performs transformations within BigQuery (no UI), while Dagster provides orchestration with a web UI, and the Dashboard UI provides the user-facing visualization layer.
+**Note**: The diagram shows the data flow architecture. Dagster orchestrates ingestion, transformation, and scheduling. dbt performs transformations within BigQuery (no UI), while the Dashboard UI provides the user-facing visualization layer.
 
 ### Data Processing Flow
 
@@ -37,19 +38,20 @@ The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
    - Loads processed data into Google BigQuery staging tables with optimized clustering
    - Handles both batch and incremental data updates
 
-2. **Data Transformation (Transform)**: 
-   - **dbt (data build tool)** performs complex transformations within BigQuery
+2. **Data Transformation**
+   - **dbt** transforms raw staging data into structured dimension and fact tables
    - Cleans, deduplicates, and models data into structured dimension and fact tables
    - Implements business logic for financial calculations and aggregations
 
-3. **Pipeline Orchestration**: 
-   - **Dagster** coordinates the entire process with dependency management
+3. **Pipeline Orchestration**
+   - **Dagster** coordinates ingestion, transformation, and scheduling
    - Provides monitoring, scheduling, and error handling capabilities
    - Offers both CLI and web-based UI for pipeline management
 
-4. **Data Visualization**: 
-   - **FastAPI backend** serves REST APIs with optimized BigQuery queries
-   - **Next.js frontend** provides interactive dashboards and real-time analytics
+4. **Data Visualization**
+   - **FastAPI + Next.js** provides modern analytics dashboard
+   - Real-time query of transformed data with caching and optimization
+   - Interactive charts and cluster analysis for investment insightsics
    - Multi-layer caching ensures responsive user experience
 
 ### Data Sources & Ingestion Process
@@ -123,36 +125,36 @@ The data warehouse follows a star schema pattern with optimized clustering:
 │ submission      │    │ reporting_owner │    │ company         │    │ reporting_owner   │
 │                 │    │                 │    │                 │    │                 │
 │ • ACCESSION_    │    │ • RPTOWNERCIK   │    │ • symbol_norm   │    │ • ACCESSION_     │
-│   NUMBER (PK)   │    │ • RPTOWNERNAME  │    │ • CIK           │
-│ • FILING_DATE   │    │ • role_type     │    │ • sector        │
-│ • ISSUER_INFO   │    │ • is_insider    │    │ • industry      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────┬───────────┴───────────┬───────────┘
-                     │                       │
-                     ▼                       ▼
-         ┌─────────────────┐    ┌─────────────────┐
-         │ fct_sec_        │    │ fct_insider_    │
-         │ nonderiv_line   │    │ transactions    │
-         │                 │    │                 │
-         │ • TRANS_        │    │ • filing_       │
-         │   SHARES        │    │   aggregates    │
-         │ • TRANS_        │    │ • owner_        │
-         │   PRICE         │    │   info         │
-         │ • VALUE_        │    │ • transaction_  │
-         │   CALCULATIONS  │    │   totals        │
-         └─────────────────┘    └─────────────────┘
-                     │                       │
-                     └───────────┬───────────┘
-                                 ▼
-                     ┌─────────────────┐
-                     │ sp500_insider_  │
-                     │ transactions    │
-                     │                 │
-                     │ • Materialized  │
-                     │ • Partitioned  │
-                     │ • Clustered     │
-                     └─────────────────┘
+│   NUMBER (PK)   │    │ • RPTOWNERNAME  │    │ • CIK           │    │   NUMBER         │
+│ • FILING_DATE   │    │ • role_type     │    │ • sector        │    │ • RPTOWNERCIK   │
+│ • ISSUER_INFO   │    │ • is_insider    │    │ • industry      │    │ • RPTOWNERNAME  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────────┘
+         │                       │                       │                       │
+         └───────────┬───────────┴───────────┬───────────┴───────────┘
+                     │                       │                       │
+                     ▼                       ▼                       ▼
+         ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+         │ fct_sec_        │    │ fct_insider_    │    │ sp500_stock_     │
+         │ nonderiv_line   │    │ transactions    │    │ daily           │
+         │                 │    │                 │    │                 │
+         │ • TRANS_        │    │ • filing_       │    │ • symbol        │
+         │   SHARES        │    │   aggregates    │    │ • date          │
+         │ • TRANS_        │    │ • owner_        │    │ • OHLCV         │
+         │   PRICE         │    │   info         │    │ • volume        │
+         │ • VALUE_        │    │ • transaction_  │    │ • clustering     │
+         │   CALCULATIONS  │    │   totals        │    │ (symbol, date)  │
+         └─────────────────┘    └─────────────────┘    └─────────────────┘
+                     │                       │                       │
+                     └───────────┬───────────┘               │
+                                 ▼                               ▼
+                     ┌─────────────────┐            ┌─────────────────┐
+                     │ sp500_insider_  │            │ Dashboard API   │
+                     │ transactions    │◀───────────│ Queries        │
+                     │                 │            │                 │
+                     │ • Materialized  │            │ • Uses dim_     │
+                     │ • Partitioned  │            │   sp500_* tables  │
+                     │ • Clustered     │            │ • Optimized     │
+                     └─────────────────┘            └─────────────────┘
 ```
 
 #### Table Design Principles
@@ -174,6 +176,7 @@ The data warehouse follows a star schema pattern with optimized clustering:
 
 4. **Materialized Views**: Performance-optimized query tables
    - `sp500_insider_transactions` with partitioning and clustering
+   - `sp500_stock_daily` with clustering on symbol and date
    - Denormalized for fast API access
    - Refreshed incrementally
 
