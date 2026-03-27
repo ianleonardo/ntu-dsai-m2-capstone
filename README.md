@@ -1,7 +1,9 @@
 # NTU DSAI Capstone Project (Module 2: Data Engineering)
+
 ## Stock Analytics Data Pipeline with Insider Trading Dashboard
 
 ### Project Overview
+
 This project is a comprehensive Stock Analytics Data Pipeline designed to ingest, process, and analyze financial market data and SEC insider trading information. Built as part of the NTU DSAI Module 2 Capstone, it automates the end-to-end flow from raw data extraction to analytics-ready models in Google BigQuery, complete with a modern dashboard UI for visualization and analysis.
 
 ### Architecture Overview
@@ -43,51 +45,46 @@ The pipeline follows a modern ELT (Extract, Load, Transform) architecture orches
 
 The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
 
-1. **Data Ingestion (Extract & Load)**: 
-   - **Meltano** extracts raw data from multiple sources (SEC EDGAR, Yahoo Finance, DataHub)
-   - Loads processed data into Google BigQuery staging tables with optimized clustering
-   - Handles both batch and incremental data updates
-
+1. **Data Ingestion (Extract & Load)**:
+  - **Meltano** extracts raw data from multiple sources (SEC EDGAR, Yahoo Finance, DataHub)
+  - Loads processed data into Google BigQuery staging tables with optimized clustering
+  - Handles both batch and incremental data updates
 2. **Data Transformation**
-   - **dbt** transforms raw staging data into structured dimension and fact tables
-   - Cleans, deduplicates, and models data into structured dimension and fact tables
-   - Implements business logic for financial calculations and aggregations
-
+  - **dbt** transforms raw staging data into structured dimension and fact tables
+  - Cleans, deduplicates, and models data into structured dimension and fact tables
+  - Implements business logic for financial calculations and aggregations
 3. **Pipeline Orchestration**
-   - **Dagster** coordinates ingestion, transformation, and scheduling
-   - Provides monitoring, scheduling, and error handling capabilities
-   - Offers both CLI and web-based UI for pipeline management
-
+  - **Dagster** coordinates ingestion, transformation, and scheduling
+  - Provides monitoring, scheduling, and error handling capabilities
+  - Offers both CLI and web-based UI for pipeline management
 4. **Data Visualization**
-   - **FastAPI + Next.js** provides modern analytics dashboard
-   - Real-time query of transformed data with caching and optimization
-   - Interactive charts and cluster analysis for investment insightsics
-   - Multi-layer caching ensures responsive user experience
+  - **FastAPI + Next.js** provides modern analytics dashboard
+  - Real-time query of transformed data with caching and optimization
+  - Interactive charts and cluster analysis for investment insightsics
+  - Multi-layer caching ensures responsive user experience
 
 ### Data Sources & Ingestion Process
 
 #### Primary Data Sources
 
 1. **SEC Form 4 Insider Trading Data**
-   - **Source**: SEC EDGAR database (quarterly TSV datasets)
-   - **Content**: Insider submissions, non-derivative transactions, reporting owners
-   - **Update Frequency**: Quarterly (with manual refresh capability)
-   - **Ingestion Method**: Automated download via `scripts/download_sec.py`
-   - **Data Volume**: ~1M+ records per year across all public companies
-
+  - **Source**: SEC EDGAR database (quarterly TSV datasets)
+  - **Content**: Insider submissions, non-derivative transactions, reporting owners
+  - **Update Frequency**: Quarterly (with manual refresh capability)
+  - **Ingestion Method**: Automated download via `scripts/download_sec.py`
+  - **Data Volume**: ~1M+ records per year across all public companies
 2. **S&P 500 Market Data**
-   - **Source**: DataHub S&P 500 constituents (https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv)
-   - **Content**: Company symbols, names, GICS sectors, CIK mappings, headquarters locations
-   - **Update Frequency**: Monthly (configurable via script)
-   - **Ingestion Method**: `scripts/download_sync_sp500_companies.py` with JSONL conversion for Meltano
-   - **Data Volume**: ~500 constituents with full company metadata
-
+  - **Source**: DataHub S&P 500 constituents ([https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv](https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv))
+  - **Content**: Company symbols, names, GICS sectors, CIK mappings, headquarters locations
+  - **Update Frequency**: Monthly (configurable via script)
+  - **Ingestion Method**: `scripts/download_sync_sp500_companies.py` with JSONL conversion for Meltano
+  - **Data Volume**: ~500 constituents with full company metadata
 3. **Market Price Data**
-   - **Source**: Yahoo Finance API via yfinance library
-   - **Content**: Daily OHLCV data for S&P 500 constituents
-   - **Update Frequency**: Daily (configurable)
-   - **Ingestion Method**: `scripts/get_stock_data_yfinance.py` with incremental updates
-   - **Data Volume**: ~500 constituents × daily price history
+  - **Source**: Yahoo Finance API via yfinance library
+  - **Content**: Daily OHLCV data for S&P 500 constituents
+  - **Update Frequency**: Daily (configurable)
+  - **Ingestion Method**: `scripts/get_stock_data_yfinance.py` with incremental updates
+  - **Data Volume**: ~500 constituents × daily price history
 
 #### Data Ingestion Architecture
 
@@ -189,25 +186,22 @@ The data warehouse follows a star schema pattern with optimized clustering:
 #### Table Design Principles
 
 1. **Staging Tables**: Raw data with minimal transformation
-   - `sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`
-   - `sp500_companies`, `sp500_stock_daily`
-   - Clustered on primary keys for efficient loading
-
+  - `sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`
+  - `sp500_companies`, `sp500_stock_daily`
+  - Clustered on primary keys for efficient loading
 2. **Dimension Tables**: Cleaned, deduplicated reference data
-   - Primary key constraints and comprehensive testing
-   - Business logic applied (role classification, date parsing)
-   - Optimized for frequent joins and filtering
-
+  - Primary key constraints and comprehensive testing
+  - Business logic applied (role classification, date parsing)
+  - Optimized for frequent joins and filtering
 3. **Fact Tables**: Transactional data with aggregations
-   - Grain defined at accession number level
-   - Pre-calculated metrics for performance
-   - Comprehensive business rules applied
-
+  - Grain defined at accession number level
+  - Pre-calculated metrics for performance
+  - Comprehensive business rules applied
 4. **Materialized Views**: Performance-optimized query tables
-   - `sp500_insider_transactions` with partitioning and clustering
-   - `sp500_stock_daily` with clustering on symbol and date
-   - Denormalized for fast API access
-   - Refreshed incrementally
+  - `sp500_insider_transactions` with partitioning and clustering
+  - `sp500_stock_daily` with clustering on symbol and date
+  - Denormalized for fast API access
+  - Refreshed incrementally
 
 ### ELT Pipeline Transformations
 
@@ -218,6 +212,7 @@ The dbt transformation layer implements sophisticated financial data processing:
 #### 1. SEC Data Cleaning and Standardization
 
 **Date Normalization Macro** (`parse_sec_date`):
+
 ```sql
 -- Handles multiple date formats from SEC data:
 -- • DD-MON-YYYY (31-MAR-2023)
@@ -228,6 +223,7 @@ The dbt transformation layer implements sophisticated financial data processing:
 ```
 
 **Transaction Code Classification**:
+
 ```sql
 -- Maps SEC transaction codes to business meanings:
 -- 'P' → 'Purchase'
@@ -237,35 +233,41 @@ The dbt transformation layer implements sophisticated financial data processing:
 
 #### 2. Dimension Table Transformations
 
-**`dim_sec_submission`**:
+`**dim_sec_submission**`:
+
 - **Deduplication**: Removes duplicate accession numbers using ROW_NUMBER()
 - **Date Parsing**: Standardizes filing dates across multiple formats
 - **Data Validation**: Ensures data quality with NOT NULL constraints
 
-**`dim_sec_reporting_owner`**:
+`**dim_sec_reporting_owner`**:
+
 - **Role Classification**: Categorizes insiders as Director, Officer, 10% Owner, or Other
 - **Name Standardization**: Trims and normalizes owner names and titles
 - **Relationship Parsing**: Extracts role information from free-text relationships
 
-**`dim_sp500_company`**:
+`**dim_sp500_company`**:
+
 - **Symbol Normalization**: Standardizes ticker symbols to uppercase
 - **CIK Mapping**: Links SEC CIK numbers to trading symbols
 - **Sector Classification**: GICS sector assignment for industry analysis
 - **Purpose**: Used to filter SEC insider transactions to S&P 500 companies only
 
-**`dim_sp500_reporting_owner`**:
+`**dim_sp500_reporting_owner`**:
+
 - **S&P 500 Filtering**: Subset of `dim_sec_reporting_owner` for S&P 500 insiders only
 - **Accession Filtering**: Only includes owners who transacted in S&P 500 companies
 - **Performance Optimization**: Enables efficient cluster analysis and breakdown queries
 
 #### 3. Fact Table Aggregations
 
-**`fct_sec_nonderiv_line`**:
+`**fct_sec_nonderiv_line`**:
+
 - **Line-level Processing**: Individual transaction line normalization
 - **Value Calculations**: Computes transaction values (shares × price)
 - **Data Validation**: Ensures non-negative share counts and prices
 
-**`fct_insider_transactions`**:
+`**fct_insider_transactions`**:
+
 - **Filing-level Aggregation**: Rolls up transactions to accession number grain
 - **Derived Metrics**:
   - `total_shares_acquired/disposed`: Aggregate transaction volumes
@@ -276,7 +278,8 @@ The dbt transformation layer implements sophisticated financial data processing:
 
 #### 4. Performance-Optimized Materializations
 
-**`sp500_insider_transactions`**:
+`**sp500_insider_transactions`**:
+
 - **Partitioning**: Yearly partitioning on `TRANS_DATE` for efficient time-series queries
 - **Clustering**: Multi-column clustering on `TRANS_DATE` and `symbol_norm` for fast lookups
 - **Denormalization**: Pre-joins company and sector information for API performance
@@ -284,13 +287,15 @@ The dbt transformation layer implements sophisticated financial data processing:
 
 #### Key Derived Columns
 
-| Column | Source | Calculation | Business Meaning |
-|--------|--------|-------------|------------------|
-| `filing_date_key` | FILING_DATE | FORMAT_DATE('%Y%m%d', FILING_DATE) | Date key for efficient joins |
-| `total_shares_acquired` | TRANSACTION_SHARES | SUM(CASE WHEN code='A' THEN shares ELSE 0 END) | Total purchased shares |
-| `est_acquire_value` | SHARES × PRICE | SUM(shares × price for purchases) | Estimated purchase value |
-| `role_type` | RPTOWNER_RELATIONSHIP | Pattern matching on text | Insider role classification |
-| `symbol_norm` | ISSUERTRADINGSYMBOL | UPPER(TRIM(symbol)) | Normalized ticker symbol |
+
+| Column                  | Source                | Calculation                                    | Business Meaning             |
+| ----------------------- | --------------------- | ---------------------------------------------- | ---------------------------- |
+| `filing_date_key`       | FILING_DATE           | FORMAT_DATE('%Y%m%d', FILING_DATE)             | Date key for efficient joins |
+| `total_shares_acquired` | TRANSACTION_SHARES    | SUM(CASE WHEN code='A' THEN shares ELSE 0 END) | Total purchased shares       |
+| `est_acquire_value`     | SHARES × PRICE        | SUM(shares × price for purchases)              | Estimated purchase value     |
+| `role_type`             | RPTOWNER_RELATIONSHIP | Pattern matching on text                       | Insider role classification  |
+| `symbol_norm`           | ISSUERTRADINGSYMBOL   | UPPER(TRIM(symbol))                            | Normalized ticker symbol     |
+
 
 ### Data Quality Testing
 
@@ -301,6 +306,7 @@ The pipeline implements multi-layer data quality assurance:
 #### 1. Schema-Level Tests
 
 **Primary Key Validation**:
+
 ```yaml
 - name: ACCESSION_NUMBER
   tests:
@@ -309,6 +315,7 @@ The pipeline implements multi-layer data quality assurance:
 ```
 
 **Referential Integrity**:
+
 ```yaml
 - name: RPTOWNERCIK
   tests:
@@ -321,6 +328,7 @@ The pipeline implements multi-layer data quality assurance:
 #### 2. Business Logic Tests
 
 **Financial Data Validation**:
+
 ```yaml
 - name: TRANS_SHARES
   tests:
@@ -333,6 +341,7 @@ The pipeline implements multi-layer data quality assurance:
 #### 3. Data Freshness Tests
 
 **Automated Freshness Monitoring**:
+
 ```yaml
 # Configured in Dagster schedules
 - Quarterly SEC data validation
@@ -364,12 +373,14 @@ The Dagster orchestration layer provides sophisticated pipeline management:
 #### 1. Asset-Based Architecture
 
 **Core Assets**:
+
 - `sec_direct_ingestion`: Complete SEC data ingestion workflow
 - `dbt_insider_transformation`: Full dbt model execution
 - `sp500_stock_daily_data`: Market data processing
 - `sec_pipeline_summary`: Pipeline execution metadata
 
 **Asset Dependencies**:
+
 ```
 sec_direct_ingestion → dbt_insider_transformation → sp500_insider_transactions
 ```
@@ -377,6 +388,7 @@ sec_direct_ingestion → dbt_insider_transformation → sp500_insider_transactio
 #### 2. Job Definitions
 
 **Complete Pipeline Job**:
+
 ```python
 sec_pipeline_direct_complete_job:
   - Ingestion: SEC data download → BigQuery loading
@@ -386,6 +398,7 @@ sec_pipeline_direct_complete_job:
 ```
 
 **Specialized Jobs**:
+
 - `sec_direct_ingestion_job`: Data ingestion only
 - `dbt_transformation_job_direct`: Transformations only
 - `sp500_stock_daily_pipeline_job`: Market data processing
@@ -394,6 +407,7 @@ sec_pipeline_direct_complete_job:
 #### 3. Automated Scheduling
 
 **Quarterly SEC Schedule**:
+
 ```python
 quarterly_sec_schedule:
   Trigger: Start of each quarter
@@ -402,6 +416,7 @@ quarterly_sec_schedule:
 ```
 
 **Monthly Validation Schedule**:
+
 ```python
 monthly_validation_schedule:
   Trigger: 1st of each month
@@ -410,6 +425,7 @@ monthly_validation_schedule:
 ```
 
 **Weekly Health Check**:
+
 ```python
 weekly_health_check_schedule:
   Trigger: Every Sunday
@@ -420,12 +436,14 @@ weekly_health_check_schedule:
 #### 4. Monitoring and Observability
 
 **Dagster UI Features**:
+
 - **Asset Graph Visualization**: Real-time pipeline dependency mapping
 - **Execution History**: Detailed run logs and performance metrics
 - **Materialization Tracking**: Data freshness and quality metrics
 - **Error Handling**: Automated retry logic and failure notifications
 
 **Key Monitoring Metrics**:
+
 - Pipeline execution duration
 - Data volume processed
 - Test pass/fail rates
@@ -439,6 +457,7 @@ weekly_health_check_schedule:
 The Insider Alpha Dashboard provides a modern web interface for data exploration:
 
 **Prerequisites**:
+
 - Completed pipeline setup with data in BigQuery
 - Node.js 18+ and Python environment
 - Backend and frontend dependencies installed
@@ -446,21 +465,24 @@ The Insider Alpha Dashboard provides a modern web interface for data exploration
 **Setup Steps**:
 
 1. **Start Backend API**:
+
 ```bash
 # From project root
 uv run uvicorn visualisation.backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. **Start Frontend**:
+1. **Start Frontend**:
+
 ```bash
 cd visualisation/frontend
 npm install
 npm run dev
 ```
 
-3. **Access Dashboard**:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000/docs
+1. **Access Dashboard**:
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend API: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 For detailed setup instructions, see the [Dashboard Setup Guide](docs/dashboard_setup.md).
 
@@ -522,7 +544,7 @@ ntu-dsai-m2-capstone/
 For comprehensive setup and operational guidance:
 
 1. **[Pre-setup Guideline](docs/setup.md)**: Environment setup, `uv` installation, GCP/BigQuery configuration
-2. **[Ingestion Guideline](docs/ingestion.md)**: Data ingestion with Meltano and helper scripts
+2. **[Meltano Ingestion Guideline](docs/meltano_ingestion_guide.md)**: Data ingestion with Meltano and helper scripts
 3. **[dbt Transformation Guideline](docs/dbt.md)**: Data transformations, model structure, and testing
 4. **[Orchestration Guideline](docs/orchestration.md)**: Pipeline orchestration with Dagster
 5. **[Dashboard Setup Guide](docs/dashboard_setup.md)**: Complete UI setup and deployment guide
@@ -549,23 +571,27 @@ cd visualisation/frontend && npm run dev
 ### Technology Stack
 
 **Data Engineering**:
+
 - **Orchestration**: Dagster (asset-based orchestration)
 - **ELT**: Meltano (extract/load) + dbt (transform)
 - **Data Warehouse**: Google BigQuery
 
 **Backend/API**:
+
 - **Framework**: FastAPI with async support
 - **Database**: BigQuery Python client with optimization
 - **Caching**: In-memory caching with search optimization
 - **Authentication**: Google Cloud IAM integration
 
 **Frontend/Dashboard**:
+
 - **Framework**: Next.js 14+ with App Router
 - **UI Library**: Modern React with TypeScript
 - **Charts**: Lightweight Charts for financial visualization
 - **Styling**: Tailwind CSS for responsive design
 
 **Infrastructure**:
+
 - **Package Management**: uv for Python, npm for Node.js
 - **Containerization**: Docker support for deployment
 - **Monitoring**: Built-in health checks and logging
@@ -573,18 +599,21 @@ cd visualisation/frontend && npm run dev
 ### Performance Optimizations
 
 **BigQuery Optimizations**:
+
 - Table clustering on frequently queried columns (`TRANS_DATE`, `symbol_norm`)
 - Yearly partitioning on `TRANS_DATE` for time-series efficiency
 - Application-level caching with TTL for repeated API queries
 - Optimized query patterns with pre-joined materialized tables
 
 **API Performance**:
+
 - Multi-level caching strategy
 - Connection pooling for BigQuery
 - Async request handling
 - Optimized query patterns
 
 **Frontend Optimizations**:
+
 - Component memoization for expensive renders
 - Virtual scrolling for large datasets
 - Debounced search inputs
@@ -593,18 +622,21 @@ cd visualisation/frontend && npm run dev
 ### Future Enhancements
 
 **Data Sources**:
+
 - Real-time market data integration
 - International market coverage
 - Alternative data sources (news, sentiment)
 - Options and derivatives data
 
 **Analytics Features**:
+
 - Machine learning predictions
 - Anomaly detection in trading patterns
 - Portfolio optimization tools
 - Regulatory compliance monitoring
 
 **Technical Improvements**:
+
 - Streaming data processing
 - Advanced caching strategies
 - Multi-cloud deployment options
@@ -612,12 +644,14 @@ cd visualisation/frontend && npm run dev
 ### Contributing
 
 This project demonstrates modern data engineering best practices:
+
 - Infrastructure as Code approach
 - Comprehensive testing and documentation
 - Scalable architecture design
 - Basic logging and pipeline monitoring
 
 ### Production Live URL
-- Frontend: https://insideralpha.theluwak.com/
-- API: https://insider-backend-1091217007062.asia-southeast1.run.app/docs 
+
+- Frontend: [https://insideralpha.theluwak.com/](https://insideralpha.theluwak.com/)
+- API: [https://insider-backend-1091217007062.asia-southeast1.run.app/docs](https://insider-backend-1091217007062.asia-southeast1.run.app/docs)
 
