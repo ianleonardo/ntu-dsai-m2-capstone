@@ -33,8 +33,14 @@ export const api = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const response = await fetch(`${API_BASE_URL}/summary?${params.toString()}`);
-    return response.json();
+    return parseJsonResponse(response, "summary") as Promise<{
+      purchase_value_m?: number;
+      purchase_count?: number;
+      sales_value_m?: number;
+      sales_count?: number;
+    }>;
   },
+
   getTransactions: async (params: {
     ticker?: string,
     search?: string,
@@ -68,20 +74,26 @@ export const api = {
       has_more?: boolean;
     }>;
   },
+
   getTickers: async () => {
     const response = await fetch(`${API_BASE_URL}/tickers`);
-    return response.json();
+    return parseJsonResponse(response, "tickers");
   },
+
   getOwners: async () => {
     const response = await fetch(`${API_BASE_URL}/owners`);
-    return response.json();
+    return parseJsonResponse(response, "owners");
   },
+
   getTopTransactions: async (startDate?: string, endDate?: string) => {
     const params = new URLSearchParams();
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const response = await fetch(`${API_BASE_URL}/top-transactions?${params.toString()}`);
-    return response.json();
+    return parseJsonResponse(response, "top-transactions") as Promise<{
+      top_buys?: unknown[];
+      top_sells?: unknown[];
+    }>;
   },
 
   getTickerChart: async (ticker: string) => {
@@ -100,7 +112,7 @@ export const api = {
 
   getSp500Companies: async () => {
     const response = await fetch(`${API_BASE_URL}/sp500-companies`);
-    return response.json();
+    return parseJsonResponse(response, "sp500-companies");
   },
 
   /** Loads stocks + insiders in parallel (split API — single combined JSON was ~40MB+ and broke browsers). */

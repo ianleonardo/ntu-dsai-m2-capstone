@@ -1,0 +1,44 @@
+{
+  "streams": [
+    {
+      "tap_stream_id": "SP500_STOCK_DAILY",
+      "stream": "SP500_STOCK_DAILY",
+      "replication_method": "INCREMENTAL",
+      "replication_key": "_sdc_last_modified",
+      "key_properties": ["symbol", "date"],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "symbol": { "type": ["string", "null"] },
+          "date": { "type": ["string", "null"], "format": "date" },
+          "year": { "type": ["integer", "null"] },
+          "open": { "type": ["number", "null"] },
+          "high": { "type": ["number", "null"] },
+          "low": { "type": ["number", "null"] },
+          "close": { "type": ["number", "null"] },
+          "volume": { "type": ["integer", "null"] },
+          "SMA200": { "type": ["number", "null"] },
+          "pre_signal": { "type": ["integer", "null"] },
+          "MACD_12_26_9": { "type": ["number", "null"] },
+          "MACDs_12_26_9": { "type": ["number", "null"] },
+          "MACDh_12_26_9": { "type": ["number", "null"] },
+          "_sdc_last_modified": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "_sdc_filename": { "type": ["string", "null"] },
+          "_sdc_stream": { "type": ["string", "null"] }
+        }
+      },
+      "metadata": [
+        {
+          "breadcrumb": [],
+          "metadata": {
+            "selected": true,
+            "table-key-properties": ["symbol", "date"]
+          }
+        }
+      ]
+    }
+  ]
+}

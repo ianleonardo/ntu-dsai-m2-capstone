@@ -226,6 +226,7 @@ export default function ClustersPage() {
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
   const [rows, setRows] = useState<ClusterRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tickerClose, setTickerClose] = useState<Map<string, number>>(() => new Map());
   const [priceBelowCostOnly, setPriceBelowCostOnly] = useState(ui0.priceBelowCostOnly);
   const [sortKey, setSortKey] = useState<ClusterSortKey>(ui0.sortKey);
@@ -267,18 +268,22 @@ export default function ClustersPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await ensureSearchDirectoryLoaded();
-      if (cancelled) return;
-      const hit = loadSearchDirectoryCache();
-      const m = new Map<string, number>();
-      if (hit?.stocks) {
-        for (const r of hit.stocks) {
-          if (r.last_close != null && Number.isFinite(r.last_close)) {
-            m.set(r.ticker.toUpperCase(), r.last_close);
+      try {
+        await ensureSearchDirectoryLoaded();
+        if (cancelled) return;
+        const hit = loadSearchDirectoryCache();
+        const m = new Map<string, number>();
+        if (hit?.stocks) {
+          for (const r of hit.stocks) {
+            if (r.last_close != null && Number.isFinite(r.last_close)) {
+              m.set(r.ticker.toUpperCase(), r.last_close);
+            }
           }
         }
+        setTickerClose(m);
+      } catch (e) {
+        console.warn("Failed to warm search directory:", e);
       }
-      setTickerClose(m);
     })();
     return () => {
       cancelled = true;
@@ -301,6 +306,7 @@ export default function ClustersPage() {
   const loadClusters = useCallback(async () => {
     if (!appliedRange.start || !appliedRange.end) return;
     setLoading(true);
+    setError(null);
     try {
       const sizeReq = sizeTierToValues(appliedFilters.size);
       const res = await api.getClusters({
@@ -322,6 +328,7 @@ export default function ClustersPage() {
     } catch (e) {
       console.error(e);
       setRows([]);
+      setError(e instanceof Error ? e.message : "An unexpected error occurred while fetching clusters.");
     } finally {
       setLoading(false);
     }
@@ -513,6 +520,20 @@ export default function ClustersPage() {
         {loading ? (
           <div className="w-full min-h-[420px] bg-card animate-pulse rounded-2xl border border-border flex items-center justify-center">
             <p className="text-muted-foreground font-medium animate-bounce italic">Loading clusters…</p>
+          </div>
+        ) : error ? (
+          <div className="w-full h-[400px] bg-card rounded-2xl border border-destructive/30 flex flex-col items-center justify-center p-8 text-center">
+            <div className="bg-destructive/10 p-4 rounded-full mb-4">
+              <span className="text-destructive text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-foreground font-bold text-xl mb-2">Failed to load clusters</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+            <button 
+              onClick={() => void loadClusters()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <div className="space-y-2">

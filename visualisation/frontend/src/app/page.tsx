@@ -28,6 +28,7 @@ export default function Home() {
   const [topSells, setTopSells] = useState<TopTx[]>([]);
   const [activeTab, setActiveTab] = useState<"buys" | "sells">("buys");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     const stored = loadStoredDateRange();
@@ -55,6 +56,7 @@ export default function Home() {
         setStats(cached.stats);
         setTopBuys(cached.topBuys);
         setTopSells(cached.topSells);
+        setError(null);
         setLoading(false);
       });
       return;
@@ -62,7 +64,10 @@ export default function Home() {
 
     let cancelled = false;
     queueMicrotask(() => {
-      if (!cancelled) setLoading(true);
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
     });
     loadOverviewBundle(dateRange.start, dateRange.end)
       .then((bundle) => {
@@ -73,6 +78,9 @@ export default function Home() {
       })
       .catch((e) => {
         console.error("Error loading dashboard data:", e);
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load dashboard data. Please check your connection.");
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -118,6 +126,22 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="h-72 bg-card animate-pulse rounded-2xl border border-border" />
             <div className="h-72 bg-card animate-pulse rounded-2xl border border-border" />
+          </div>
+        ) : error ? (
+          <div className="w-full h-[300px] bg-card rounded-2xl border border-destructive/30 flex flex-col items-center justify-center p-8 text-center">
+            <div className="bg-destructive/10 p-4 rounded-full mb-4">
+              <span className="text-destructive text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-foreground font-bold text-xl mb-1">Unable to load dashboard data</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+            <button 
+              onClick={() => {
+                setDateRange({ ...dateRange }); // Trigger useEffect
+              }}
+              className="px-8 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

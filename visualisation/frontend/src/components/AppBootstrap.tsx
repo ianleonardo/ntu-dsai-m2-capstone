@@ -1,22 +1,34 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { loadStoredDateRange, defaultStoredDateRange } from "@/lib/dateRangeStorage";
 import { loadOverviewBundle } from "@/lib/overviewFetch";
 import { ensureSearchDirectoryLoaded } from "@/lib/searchDirectoryCache";
 
 /**
- * Warms sessionStorage-backed caches as soon as the app loads so Overview and the
- * transactions search bar can render from cache without waiting on first navigation.
+ * Component that warms up global caches / filters on mount.
+ * Returns null as it has no UI.
  */
 export default function AppBootstrap() {
+  const initialized = useRef(false);
+
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const range = loadStoredDateRange() ?? defaultStoredDateRange();
-    const tasks: Promise<unknown>[] = [ensureSearchDirectoryLoaded()];
+    
+    // Warm search directory
+    void ensureSearchDirectoryLoaded().catch((e) => {
+      console.warn("[Bootstrap] Directory search cache failed to warm:", e.message || e);
+    });
+
+    // Warm overview data
     if (range.start && range.end) {
-      tasks.push(loadOverviewBundle(range.start, range.end).catch(() => {}));
+      void loadOverviewBundle(range.start, range.end).catch((e) => {
+        console.warn("[Bootstrap] Overview data failed to warm:", e.message || e);
+      });
     }
-    void Promise.all(tasks).catch(() => {});
   }, []);
 
   return null;

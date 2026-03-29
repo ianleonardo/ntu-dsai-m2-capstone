@@ -564,8 +564,13 @@ uv run dagster dev
 # Access Dagster UI at http://localhost:3000
 
 # 4. Launch dashboard (optional)
-uv run uvicorn visualisation.backend.main:app --reload &
-cd visualisation/frontend && npm run dev
+## Open new terminal
+cd visualisation/backend
+uv run uvicorn main:app --reload --port 8000
+
+## Open new terminal
+cd visualisation/frontend
+npm run dev
 ```
 
 ### Technology Stack
