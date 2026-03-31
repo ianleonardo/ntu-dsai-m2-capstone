@@ -222,3 +222,7 @@ dataprocessing/meltano_ingestion/staging/
 dataprocessing/dbt_insider_transactions/dbt_packages/
 
 visualisation/wireframe/
+
+## claude
+.claude/
+.memsearch/
