@@ -126,6 +126,96 @@ Use Dagster asset **`sec_direct_ingestion`** (see [Orchestration Guide](orchestr
 | SEC_REPORTINGOWNER | ACCESSION_NUMBER, RPTOWNERCIK | Reporting owner details |
 | SEC_NONDERIV_TRANS | ACCESSION_NUMBER, NONDERIV_TRANS_SK | Non-derivative transactions |
 
+#### Form 4 monthly files for current year (no BigQuery upload)
+
+When SEC quarterly bulk ZIPs are not yet published (for example, early in a new year), use:
+`scripts/download_sec_form4_monthly.py`.
+
+This utility:
+- Downloads exact **Form `4`** filings from EDGAR daily indexes (not `4/A`)
+- Parses ownership XML and extracts only `SUBMISSION`, `REPORTINGOWNER`, `NONDERIV_TRANS`
+- Writes monthly TSV files and local run state/failure logs
+- Can optionally upload generated monthly TSVs to BigQuery tables (`sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`)
+
+```bash
+cd /path/to/repo
+uv run --project . python scripts/download_sec_form4_monthly.py \
+  --start-date 2026-01-01 \
+  --end-date "$(date +%F)" \
+  --user-agent "Your Name your_email@example.com" \
+  --output-dir "dataprocessing/meltano_ingestion/staging/sec_form4_2026_monthly" \
+  --resume
+```
+
+Expected outputs by month (`YYYY-MM`):
+- `SUBMISSION_YYYY-MM.tsv`
+- `REPORTINGOWNER_YYYY-MM.tsv`
+- `NONDERIV_TRANS_YYYY-MM.tsv`
+- `state_YYYY-MM.json` (resume state)
+- `failures_YYYY-MM.tsv` (per-filing errors)
+- `run_summary.json` (run totals)
+
+Optional upload step:
+
+```bash
+uv run --project . python scripts/download_sec_form4_monthly.py \
+  --start-date 2026-01-01 \
+  --end-date "$(date +%F)" \
+  --user-agent "Your Name your_email@example.com" \
+  --output-dir "dataprocessing/meltano_ingestion/staging/sec_form4_2026_monthly" \
+  --resume \
+  --upload-bigquery \
+  --bq-project-id "ntu-dsai-488112" \
+  --bq-dataset "insider_transactions"
+```
+
+Dagster job:
+- Job name: `sec_form4_monthly_pipeline_job`
+- Config supports date range explicitly:
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+user_agent: "Your Name your_email@example.com"
+upload_bigquery: true
+bq_project_id: "ntu-dsai-488112"
+bq_dataset: "insider_transactions"
+resume: true
+```
+
+Post-load validation summary in Dagster:
+- Job name: `sec_form4_monthly_summary_job`
+- Reads row counts from BigQuery for the same date range and reports:
+  - `sec_submission_rows`
+  - `sec_reportingowner_rows`
+  - `sec_nonderiv_trans_rows`
+  - `distinct_accession_numbers`
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+bq_project_id: "ntu-dsai-488112"   # optional if GOOGLE_PROJECT_ID is set
+bq_dataset: "insider_transactions"   # optional if BIGQUERY_DATASET is set
+```
+
+Single combined Dagster run (recommended):
+- Job name: `sec_form4_monthly_combined_job`
+- Executes:
+  1. `sec_form4_monthly_ingestion` (download monthly files + optional BQ upload)
+  2. `dbt_sp500_insider_transactions_form4` (materialize `sp500_insider_transactions`)
+  3. `sec_form4_monthly_bigquery_summary` (BQ row-count summary for same range)
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+user_agent: "Your Name your_email@example.com"
+upload_bigquery: true
+bq_project_id: "ntu-dsai-488112"
+bq_dataset: "insider_transactions"
+resume: true
+max_requests_per_second: 5.0
+```
+
 ### S&P 500 Companies Ingestion
 
 #### What It Does

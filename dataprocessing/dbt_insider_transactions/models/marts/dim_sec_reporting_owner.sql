@@ -11,7 +11,11 @@ base AS (
         ACCESSION_NUMBER,
         RPTOWNERCIK,
         RPTOWNERNAME,
-        RPTOWNER_RELATIONSHIP,
+        -- Raw loads may leave relationship NULL/blank (e.g. Form 4 XML with no flags set, legacy rows).
+        COALESCE(
+            NULLIF(TRIM(RPTOWNER_RELATIONSHIP), ''),
+            'Unknown'
+        ) AS RPTOWNER_RELATIONSHIP,
         RPTOWNER_TITLE,
         RPTOWNER_TXT,
         RPTOWNER_STREET1,

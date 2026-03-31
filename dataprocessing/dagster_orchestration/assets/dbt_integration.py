@@ -144,6 +144,41 @@ def dbt_insider_transformation(context: AssetExecutionContext) -> MaterializeRes
     return MaterializeResult(metadata=test_meta)
 
 
+@asset(
+    group_name="dbt_transformation",
+    description="Materialize sp500_insider_transactions (and dependencies) after Form4 monthly ingestion.",
+    deps=["sec_form4_monthly_ingestion"],
+)
+def dbt_sp500_insider_transactions_form4(context: AssetExecutionContext) -> MaterializeResult:
+    """
+    Runs dbt for sp500_insider_transactions only, scoped for the Form4 monthly pipeline.
+    """
+    dbt_cli = DbtCliResource(
+        project_dir=os.fspath(DBT_PROJECT_DIR),
+        profiles_dir=os.fspath(DBT_PROJECT_DIR),
+    )
+
+    select_expr = "sp500_insider_transactions+"
+    run_inv = dbt_cli.cli(["run", "--select", select_expr]).wait()
+    if not run_inv.is_successful():
+        err = run_inv.get_error()
+        context.log.error(f"dbt run ({select_expr}) failed: {err}")
+        raise RuntimeError(f"dbt run ({select_expr}) failed: {err}")
+    context.log.info(f"dbt run completed for selection: {select_expr}")
+
+    test_inv = dbt_cli.cli(["test", "--select", select_expr], raise_on_error=False).wait()
+    test_meta, test_md = _test_report_from_invocation(test_inv)
+    context.log.info(test_md)
+
+    if not test_inv.is_successful():
+        err = test_inv.get_error()
+        context.log.error(f"dbt test ({select_expr}) failed: {err}")
+        raise RuntimeError(f"dbt test ({select_expr}) failed: {err}")
+
+    test_meta["dbt_selection"] = MetadataValue.text(select_expr)
+    return MaterializeResult(metadata=test_meta)
+
+
 # If you later want fine-grained dbt asset integration (one asset per dbt model),
 # you can reintroduce dbt_dbt's `@dbt_assets` integration here using the
 # signature that matches your installed dagster-dbt version.

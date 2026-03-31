@@ -139,9 +139,9 @@ export default function CandlestickModal({ ticker, transDate, onClose }: Props) 
             if (chartRef.current && sorted.length > 0) {
               const d = new Date(transDate);
               const startObj = new Date(d);
-              startObj.setMonth(startObj.getMonth() - 2);
+              startObj.setUTCMonth(startObj.getUTCMonth() - 2);
               const endObj = new Date(d);
-              endObj.setMonth(endObj.getMonth() + 2);
+              endObj.setUTCMonth(endObj.getUTCMonth() + 2);
               const startStr = startObj.toISOString().split("T")[0];
               const endStr = endObj.toISOString().split("T")[0];
 

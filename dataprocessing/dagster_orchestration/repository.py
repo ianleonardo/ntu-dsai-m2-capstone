@@ -8,12 +8,14 @@ the SEC data pipeline with Dagster.
 from dagster import Definitions, repository
 
 # Import assets (relative imports inside package)
-from .assets.dbt_integration import dbt_insider_transformation
+from .assets.dbt_integration import dbt_insider_transformation, dbt_sp500_insider_transactions_form4
 from .assets.sec_bigquery_dedupe import sec_bigquery_dedupe_only
 
 # Import simplified SEC direct ingestion assets (no GCS)
 from .assets.sec_direct_ingestion import sec_direct_ingestion
 from .assets.sec_direct_pipeline_summary import sec_direct_pipeline_summary
+from .assets.sec_form4_monthly_ingestion import sec_form4_monthly_ingestion
+from .assets.sec_form4_monthly_bigquery_summary import sec_form4_monthly_bigquery_summary
 
 # Import assets for SP500 daily stock pipeline
 from .assets.sp500_stock_daily_integration import (
@@ -32,6 +34,9 @@ from .jobs.sec_pipeline_direct import (
 
 # Import jobs for SP500 daily stock pipeline
 from .jobs.sp500_stock_daily_pipeline import sp500_stock_daily_pipeline_job
+from .jobs.sec_form4_monthly_pipeline import sec_form4_monthly_pipeline_job
+from .jobs.sec_form4_monthly_summary_job import sec_form4_monthly_summary_job
+from .jobs.sec_form4_monthly_combined_job import sec_form4_monthly_combined_job
 
 # Import schedules
 from .schedules.sec_schedules import (
@@ -60,6 +65,9 @@ def sec_data_repository():
         # Simplified SEC direct ingestion assets (no GCS)
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
+        sec_form4_monthly_ingestion,
+        sec_form4_monthly_bigquery_summary,
+        dbt_sp500_insider_transactions_form4,
 
         sp500_stock_daily_staging_data,
         bigquery_sp500_stock_daily_data,
@@ -70,6 +78,9 @@ def sec_data_repository():
         dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
         sec_dedupe_only_job,
+        sec_form4_monthly_pipeline_job,
+        sec_form4_monthly_summary_job,
+        sec_form4_monthly_combined_job,
 
         sp500_stock_daily_pipeline_job,
         
@@ -90,12 +101,18 @@ def create_simple_repository():
             sec_bigquery_dedupe_only,
             sec_direct_ingestion,
             sec_direct_pipeline_summary,
+            sec_form4_monthly_ingestion,
+            sec_form4_monthly_bigquery_summary,
+            dbt_sp500_insider_transactions_form4,
         ],
         jobs=[
             sec_direct_ingestion_job,
             dbt_transformation_job_direct,
             sec_pipeline_direct_complete_job,
             sec_dedupe_only_job,
+            sec_form4_monthly_pipeline_job,
+            sec_form4_monthly_summary_job,
+            sec_form4_monthly_combined_job,
         ],
     )
 
@@ -107,6 +124,9 @@ definitions = Definitions(
         sec_bigquery_dedupe_only,
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
+        sec_form4_monthly_ingestion,
+        sec_form4_monthly_bigquery_summary,
+        dbt_sp500_insider_transactions_form4,
 
         sp500_stock_daily_staging_data,
         bigquery_sp500_stock_daily_data,
@@ -117,6 +137,9 @@ definitions = Definitions(
         dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
         sec_dedupe_only_job,
+        sec_form4_monthly_pipeline_job,
+        sec_form4_monthly_summary_job,
+        sec_form4_monthly_combined_job,
 
         sp500_stock_daily_pipeline_job,
     ],
