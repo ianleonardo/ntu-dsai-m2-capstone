@@ -1,4 +1,4 @@
-# Meltano project: SEC data (insider forms + company tickers) — GCS/JSON to BigQuery
+# Meltano project: SEC data (insider forms + company tickers) — local staging to BigQuery
 # See docs/meltano_sec_ingestion_guide.md for usage.
 
 default_environment: dev

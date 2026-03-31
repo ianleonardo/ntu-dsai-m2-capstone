@@ -173,7 +173,7 @@ Source-level tests:
 #### SEC Direct Pipeline Assets
 1. `sec_direct_ingestion` (`assets/sec_direct_ingestion.py`)
    - **Group**: `ingestion`
-   - **Purpose**: direct SEC download -> BigQuery load (no GCS)
+   - **Purpose**: direct SEC download -> BigQuery load
    - **Config**: `year` OR `from_year`/`to_year`, `quarters`, `dataset`, `batch_size`, `dry_run`, `skip_dedupe`
    - **Core dependencies**: uses script module `scripts/download_sec_to_bigquery.py` (`download_sec_data`, `SECBigQueryLoader`)
    - **Metadata emitted**: years processed, quarters, dataset, row counts, tables loaded

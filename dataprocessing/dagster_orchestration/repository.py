@@ -11,7 +11,7 @@ from dagster import Definitions, repository
 from .assets.dbt_integration import dbt_insider_transformation, dbt_sp500_insider_transactions_form4
 from .assets.sec_bigquery_dedupe import sec_bigquery_dedupe_only
 
-# Import simplified SEC direct ingestion assets (no GCS)
+# Import SEC direct ingestion assets
 from .assets.sec_direct_ingestion import sec_direct_ingestion
 from .assets.sec_direct_pipeline_summary import sec_direct_pipeline_summary
 from .assets.sec_form4_monthly_ingestion import sec_form4_monthly_ingestion
@@ -62,7 +62,7 @@ def sec_data_repository():
         dbt_insider_transformation,
         sec_bigquery_dedupe_only,
 
-        # Simplified SEC direct ingestion assets (no GCS)
+        # SEC direct ingestion assets
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
         sec_form4_monthly_ingestion,

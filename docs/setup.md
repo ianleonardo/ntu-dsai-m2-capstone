@@ -48,7 +48,7 @@ The pipeline loads data into Google BigQuery and the dashboard queries from it. 
 ### 4.1 GCP Project Configuration
 - **GCP Project**: A project with the BigQuery API enabled.
 - **BigQuery Dataset**: Create a dataset (e.g., `insider_transactions`) in your preferred location (e.g., `asia-southeast1`).
-- **Service Account**: Create a service account with `BigQuery Admin` and `Storage Admin` roles.
+- **Service Account**: Create a service account with BigQuery permissions (e.g., `BigQuery Job User` + `BigQuery Data Editor`, or `BigQuery Admin`).
 - **Credentials Key**: Download the JSON key file for your service account and store it securely.
 
 ### 4.2 BigQuery Table Setup

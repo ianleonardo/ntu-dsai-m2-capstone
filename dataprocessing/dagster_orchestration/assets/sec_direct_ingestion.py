@@ -3,7 +3,7 @@ Simplified SEC Data Ingestion Assets for Dagster
 
 This module provides Dagster assets for the simplified SEC data pipeline
 that downloads data directly from SEC website to BigQuery, eliminating
-the GCS intermediate step.
+any intermediate storage layer.
 """
 
 import os
@@ -57,8 +57,7 @@ def sec_direct_ingestion(
     """
     Download SEC data directly from SEC website and load to BigQuery.
     
-    This asset eliminates the GCS intermediate step and streams data directly
-    to BigQuery, reducing complexity and processing time.
+    Streams data directly to BigQuery, reducing complexity and processing time.
     """
     current_year = datetime.now().year
 

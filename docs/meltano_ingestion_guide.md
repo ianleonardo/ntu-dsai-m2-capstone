@@ -372,7 +372,6 @@ uv run --project .. meltano install
 
 **Data Not Found**
 - For **Meltano SEC insider**: confirm `staging/SUBMISSION.csv`, `REPORTINGOWNER.csv`, `NONDERIV_TRANS.csv` exist and are tab-delimited as configured.
-- If you use a **GCS** mirror for your own sync, ensure the service account has Storage Object Viewer and your sync step populates `staging/` before `meltano run load-sec-insider`.
 
 **Duplicate Key Errors**
 - This is normal with `upsert: true` - existing rows are updated
@@ -391,9 +390,7 @@ GOOGLE_CLOUD_PROJECT=ntu-dsai-488112
 BIGQUERY_DATASET=insider_transactions
 TARGET_BIGQUERY_CREDENTIALS_PATH=/absolute/path/to/service-account.json
 
-# Optional: your own tooling may use GCS before copying into staging/
-# GCS_BUCKET=...
-# GCS_SEC_PREFIX=...
+# (No GCS setup in this project)
 ```
 
 Variables such as **`SEC_YEAR`**, **`SEC_LOAD_QUARTER`**, and related fields are used by **Dagster / `scripts/download_sec_to_bigquery.py`** (direct SEC pipeline), **not** by `tap-csv` in Meltano. For year/quarter loads via Dagster, see [Orchestration Guide](orchestration.md).
