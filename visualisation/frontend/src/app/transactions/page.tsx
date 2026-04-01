@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import TransactionTable from "@/components/TransactionTable";
@@ -32,15 +33,20 @@ export default function TransactionsPage() {
   const [totalRows, setTotalRows] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [tickerClose, setTickerClose] = useState<Map<string, number>>(() => new Map());
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  useLayoutEffect(() => {
+  const pathname = usePathname();
+
+  useEffect(() => {
     const stored = loadStoredDateRange();
     if (stored) {
       setDateRange(stored);
       setAppliedRange(stored);
     }
     setAppliedFilters(loadUnifiedFilters());
-  }, []);
+    // Auto-refresh data on navigation
+    setRefreshTrigger((p) => p + 1);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,6 +75,7 @@ export default function TransactionsPage() {
 
   const handleDateRange = useCallback((r: { start: string; end: string }) => {
     setDateRange(r);
+    saveStoredDateRange(r);
   }, []);
 
   const appliedFilter = useMemo(
@@ -107,7 +114,7 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedRange.start, appliedRange.end, appliedFilter.search, sectorKey, roleKey, appliedFilters.size, page]);
+  }, [appliedRange.start, appliedRange.end, appliedFilter.search, sectorKey, roleKey, appliedFilters.size, page, refreshTrigger]);
 
   useEffect(() => {
     void loadTransactions();
@@ -118,6 +125,7 @@ export default function TransactionsPage() {
     setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
     setPage(1);
+    setRefreshTrigger((p) => p + 1);
   }, [dateRange]);
 
   const totalPages =

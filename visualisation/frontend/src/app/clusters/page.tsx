@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import UnifiedFilterBar from "@/components/UnifiedFilterBar";
 import { cn, formatIsoDateLabel } from "@/lib/utils";
@@ -130,8 +131,10 @@ function clusterSortValue(
       return (r.ticker || "").toUpperCase();
     case "signal":
       return r.insider_count;
-    case "window":
-      return windowDays(r.first_trans, r.last_trans);
+    case "window": {
+      const t = Date.parse(isoDay(r.first_trans) + "T12:00:00");
+      return Number.isFinite(t) ? t : 0;
+    }
     case "value":
       return r.cluster_value;
     case "return":
@@ -237,8 +240,11 @@ export default function ClustersPage() {
   breakdownRef.current = breakdownByKey;
   const [breakdownLoadingKey, setBreakdownLoadingKey] = useState<string | null>(null);
   const [selectedChart, setSelectedChart] = useState<{ ticker: string; transDate: string } | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  useLayoutEffect(() => {
+  const pathname = usePathname();
+
+  useEffect(() => {
     const stored = loadStoredDateRange();
     if (stored) {
       setDateRange(stored);
@@ -251,7 +257,8 @@ export default function ClustersPage() {
     setSortKey(p.sortKey);
     setSortDir(p.sortDir);
     setAppliedFilters(loadUnifiedFilters());
-  }, []);
+    setRefreshTrigger((prev) => prev + 1);
+  }, [pathname]);
 
   useEffect(() => {
     saveClustersUiPersisted({
@@ -292,6 +299,7 @@ export default function ClustersPage() {
 
   const handleDateRange = useCallback((r: { start: string; end: string }) => {
     setDateRange(r);
+    saveStoredDateRange(r);
   }, []);
 
   const appliedFilter = useMemo(
@@ -341,6 +349,7 @@ export default function ClustersPage() {
     clusterSectorKey,
     clusterRoleKey,
     appliedFilters.size,
+    refreshTrigger,
   ]);
 
   useEffect(() => {
@@ -351,6 +360,7 @@ export default function ClustersPage() {
     saveStoredDateRange(dateRange);
     setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
+    setRefreshTrigger((p) => p + 1);
   }, [dateRange]);
 
   const onSort = useCallback(
