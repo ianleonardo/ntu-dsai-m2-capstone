@@ -1,8 +1,8 @@
 """
-Combined Dagster job: Form4 ingestion/upload + BigQuery summary.
+Combined Dagster job: Form4 daily-index ingestion/upload + BigQuery summary.
 """
 
-from dagster import ConfigMapping, Field, define_asset_job, AssetSelection
+from dagster import AssetSelection, ConfigMapping, Field, define_asset_job
 
 
 SEC_FORM4_COMBINED_SCHEMA = {
@@ -71,18 +71,18 @@ def _sec_form4_combined_config_fn(job_config: dict) -> dict:
             summary_cfg[key] = v
     return {
         "ops": {
-            "sec_form4_monthly_ingestion": {"config": ingest_cfg},
-            "sec_form4_monthly_bigquery_summary": {"config": summary_cfg},
+            "sec_form4_daily_ingestion": {"config": ingest_cfg},
+            "sec_form4_daily_bigquery_summary": {"config": summary_cfg},
         }
     }
 
 
-sec_form4_monthly_combined_job = define_asset_job(
-    name="sec_form4_monthly_combined_job",
+sec_form4_daily_combined_job = define_asset_job(
+    name="sec_form4_daily_combined_job",
     selection=AssetSelection.assets(
-        "sec_form4_monthly_ingestion",
+        "sec_form4_daily_ingestion",
         "dbt_sp500_insider_transactions_form4",
-        "sec_form4_monthly_bigquery_summary",
+        "sec_form4_daily_bigquery_summary",
     ),
     description="Combined job: Form4 date-range ingestion/upload -> dbt sp500_insider_transactions -> BigQuery summary.",
     config=ConfigMapping(
@@ -90,4 +90,7 @@ sec_form4_monthly_combined_job = define_asset_job(
         config_schema=SEC_FORM4_COMBINED_SCHEMA,
     ),
 )
+
+
+__all__ = ["sec_form4_daily_combined_job"]
 

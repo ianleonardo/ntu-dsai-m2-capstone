@@ -1,11 +1,11 @@
 """
-Dagster job for SEC Form 4 monthly ingestion with from/to date config.
+Dagster job for SEC Form 4 daily-index ingestion with from/to date config.
 """
 
-from dagster import ConfigMapping, Field, define_asset_job, AssetSelection
+from dagster import AssetSelection, ConfigMapping, Field, define_asset_job
 
 
-def _sec_form4_monthly_config_fn(job_config: dict) -> dict:
+def _sec_form4_daily_config_fn(job_config: dict) -> dict:
     cfg: dict = {}
     for key in (
         "from_date",
@@ -22,10 +22,10 @@ def _sec_form4_monthly_config_fn(job_config: dict) -> dict:
         v = job_config.get(key)
         if v not in (None, "", []):
             cfg[key] = v
-    return {"ops": {"sec_form4_monthly_ingestion": {"config": cfg}}}
+    return {"ops": {"sec_form4_daily_ingestion": {"config": cfg}}}
 
 
-SEC_FORM4_MONTHLY_SCHEMA = {
+SEC_FORM4_DAILY_SCHEMA = {
     "from_date": Field(str, is_required=True, description="Inclusive start date YYYY-MM-DD."),
     "to_date": Field(str, is_required=True, description="Inclusive end date YYYY-MM-DD."),
     "user_agent": Field(
@@ -49,7 +49,9 @@ SEC_FORM4_MONTHLY_SCHEMA = {
         description="Additional sleep after each request.",
     ),
     "resume": Field(bool, is_required=False, description="Skip accessions already in state files."),
-    "upload_bigquery": Field(bool, is_required=False, description="Upload generated monthly TSVs to BigQuery."),
+    "upload_bigquery": Field(
+        bool, is_required=False, description="Upload generated monthly TSVs to BigQuery."
+    ),
     "bq_project_id": Field(
         str,
         is_required=False,
@@ -63,13 +65,16 @@ SEC_FORM4_MONTHLY_SCHEMA = {
 }
 
 
-sec_form4_monthly_pipeline_job = define_asset_job(
-    name="sec_form4_monthly_pipeline_job",
-    selection=AssetSelection.assets("sec_form4_monthly_ingestion"),
-    description="SEC Form 4 date-range pipeline: monthly files + optional BigQuery upload.",
+sec_form4_daily_pipeline_job = define_asset_job(
+    name="sec_form4_daily_pipeline_job",
+    selection=AssetSelection.assets("sec_form4_daily_ingestion"),
+    description="SEC Form 4 date-range pipeline (daily indexes): monthly files + optional BigQuery upload.",
     config=ConfigMapping(
-        config_fn=_sec_form4_monthly_config_fn,
-        config_schema=SEC_FORM4_MONTHLY_SCHEMA,
+        config_fn=_sec_form4_daily_config_fn,
+        config_schema=SEC_FORM4_DAILY_SCHEMA,
     ),
 )
+
+
+__all__ = ["sec_form4_daily_pipeline_job"]
 

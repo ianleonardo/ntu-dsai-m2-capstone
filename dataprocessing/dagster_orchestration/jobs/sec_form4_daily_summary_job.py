@@ -1,8 +1,8 @@
 """
-Dagster job for Form4 BigQuery summary asset.
+Dagster job for Form4 BigQuery summary asset (daily-index pipeline).
 """
 
-from dagster import ConfigMapping, Field, define_asset_job, AssetSelection
+from dagster import AssetSelection, ConfigMapping, Field, define_asset_job
 
 
 def _sec_form4_summary_config_fn(job_config: dict) -> dict:
@@ -11,7 +11,7 @@ def _sec_form4_summary_config_fn(job_config: dict) -> dict:
         v = job_config.get(key)
         if v not in (None, "", []):
             cfg[key] = v
-    return {"ops": {"sec_form4_monthly_bigquery_summary": {"config": cfg}}}
+    return {"ops": {"sec_form4_daily_bigquery_summary": {"config": cfg}}}
 
 
 SEC_FORM4_SUMMARY_SCHEMA = {
@@ -22,13 +22,16 @@ SEC_FORM4_SUMMARY_SCHEMA = {
 }
 
 
-sec_form4_monthly_summary_job = define_asset_job(
-    name="sec_form4_monthly_summary_job",
-    selection=AssetSelection.assets("sec_form4_monthly_bigquery_summary"),
+sec_form4_daily_summary_job = define_asset_job(
+    name="sec_form4_daily_summary_job",
+    selection=AssetSelection.assets("sec_form4_daily_bigquery_summary"),
     description="Summarize Form4 BigQuery rows in date range.",
     config=ConfigMapping(
         config_fn=_sec_form4_summary_config_fn,
         config_schema=SEC_FORM4_SUMMARY_SCHEMA,
     ),
 )
+
+
+__all__ = ["sec_form4_daily_summary_job"]
 

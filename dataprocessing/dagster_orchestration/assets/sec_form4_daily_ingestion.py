@@ -1,5 +1,5 @@
 """
-Dagster asset for SEC Form 4 monthly ingestion (download + optional BigQuery load).
+Dagster asset for SEC Form 4 daily-index ingestion (download + optional BigQuery load).
 """
 
 import json
@@ -13,7 +13,7 @@ from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataVa
 project_root = Path(__file__).resolve().parents[3]
 
 
-class SecForm4MonthlyConfig(Config):
+class SecForm4DailyConfig(Config):
     from_date: str = "2026-01-01"
     to_date: str
     user_agent: str = "NTU DSAI Capstone ian@example.com"
@@ -33,14 +33,14 @@ class SecForm4MonthlyConfig(Config):
 
 
 @asset(
-    key="sec_form4_monthly_ingestion",
-    description="Download Form 4 filings by date range and load monthly files to BigQuery.",
+    key="sec_form4_daily_ingestion",
+    description="Download Form 4 filings (via daily indexes) by date range and load monthly files to BigQuery.",
     metadata={"tool": "SEC EDGAR + BigQuery", "scope": "Form 4 only"},
 )
-def sec_form4_monthly_ingestion(
-    context: AssetExecutionContext, config: SecForm4MonthlyConfig
+def sec_form4_daily_ingestion(
+    context: AssetExecutionContext, config: SecForm4DailyConfig
 ) -> MaterializeResult:
-    script = project_root / "scripts" / "download_sec_form4_monthly.py"
+    script = project_root / "scripts" / "download_sec_form4_daily.py"
     if not script.is_file():
         raise FileNotFoundError(f"Missing script: {script}")
 
@@ -71,7 +71,7 @@ def sec_form4_monthly_ingestion(
 
     env = os.environ.copy()
     context.log.info(
-        "Running SEC Form4 monthly ingestion: "
+        "Running SEC Form4 daily-index ingestion: "
         f"{config.from_date} -> {config.to_date}, upload_bigquery={config.upload_bigquery}"
     )
     proc = subprocess.run(
@@ -86,7 +86,7 @@ def sec_form4_monthly_ingestion(
     if proc.stderr.strip():
         context.log.warning(proc.stderr)
     if proc.returncode != 0:
-        raise RuntimeError(f"sec_form4_monthly_ingestion failed: {proc.stderr or proc.stdout}")
+        raise RuntimeError(f"sec_form4_daily_ingestion failed: {proc.stderr or proc.stdout}")
 
     summary_path = Path(config.output_dir) / "run_summary.json"
     summary_obj = {}
@@ -106,4 +106,7 @@ def sec_form4_monthly_ingestion(
             "stdout_tail": MetadataValue.md(f"```\n{proc.stdout[-2000:]}\n```"),
         }
     )
+
+
+__all__ = ["sec_form4_daily_ingestion", "SecForm4DailyConfig"]
 

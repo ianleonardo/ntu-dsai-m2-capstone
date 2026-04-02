@@ -14,8 +14,8 @@ from .assets.sec_bigquery_dedupe import sec_bigquery_dedupe_only
 # Import SEC direct ingestion assets
 from .assets.sec_direct_ingestion import sec_direct_ingestion
 from .assets.sec_direct_pipeline_summary import sec_direct_pipeline_summary
-from .assets.sec_form4_monthly_ingestion import sec_form4_monthly_ingestion
-from .assets.sec_form4_monthly_bigquery_summary import sec_form4_monthly_bigquery_summary
+from .assets.sec_form4_daily_ingestion import sec_form4_daily_ingestion
+from .assets.sec_form4_daily_bigquery_summary import sec_form4_daily_bigquery_summary
 
 # Import assets for SP500 daily stock pipeline
 from .assets.sp500_stock_daily_integration import (
@@ -38,9 +38,9 @@ from .jobs.sec_pipeline_direct import (
 # Import jobs for SP500 daily stock pipeline
 from .jobs.sp500_stock_daily_pipeline import sp500_stock_daily_pipeline_job
 from .jobs.sp500_companies_ingestion_job import sp500_companies_ingestion_job
-from .jobs.sec_form4_monthly_pipeline import sec_form4_monthly_pipeline_job
-from .jobs.sec_form4_monthly_summary_job import sec_form4_monthly_summary_job
-from .jobs.sec_form4_monthly_combined_job import sec_form4_monthly_combined_job
+from .jobs.sec_form4_daily_pipeline import sec_form4_daily_pipeline_job
+from .jobs.sec_form4_daily_summary_job import sec_form4_daily_summary_job
+from .jobs.sec_form4_daily_combined_job import sec_form4_daily_combined_job
 
 # Import schedules
 from .schedules.sec_schedules import (
@@ -69,8 +69,8 @@ def sec_data_repository():
         # SEC direct ingestion assets
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
-        sec_form4_monthly_ingestion,
-        sec_form4_monthly_bigquery_summary,
+        sec_form4_daily_ingestion,
+        sec_form4_daily_bigquery_summary,
         dbt_sp500_insider_transactions_form4,
 
         sp500_stock_daily_staging_data,
@@ -83,9 +83,9 @@ def sec_data_repository():
         dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
         sec_dedupe_only_job,
-        sec_form4_monthly_pipeline_job,
-        sec_form4_monthly_summary_job,
-        sec_form4_monthly_combined_job,
+        sec_form4_daily_pipeline_job,
+        sec_form4_daily_summary_job,
+        sec_form4_daily_combined_job,
 
         sp500_stock_daily_pipeline_job,
         sp500_companies_ingestion_job,
@@ -107,8 +107,8 @@ def create_simple_repository():
             sec_bigquery_dedupe_only,
             sec_direct_ingestion,
             sec_direct_pipeline_summary,
-            sec_form4_monthly_ingestion,
-            sec_form4_monthly_bigquery_summary,
+            sec_form4_daily_ingestion,
+            sec_form4_daily_bigquery_summary,
             dbt_sp500_insider_transactions_form4,
             sp500_companies_ingestion,
         ],
@@ -117,9 +117,9 @@ def create_simple_repository():
             dbt_transformation_job_direct,
             sec_pipeline_direct_complete_job,
             sec_dedupe_only_job,
-            sec_form4_monthly_pipeline_job,
-            sec_form4_monthly_summary_job,
-            sec_form4_monthly_combined_job,
+            sec_form4_daily_pipeline_job,
+            sec_form4_daily_summary_job,
+            sec_form4_daily_combined_job,
             sp500_companies_ingestion_job,
         ],
     )
@@ -132,8 +132,8 @@ definitions = Definitions(
         sec_bigquery_dedupe_only,
         sec_direct_ingestion,
         sec_direct_pipeline_summary,
-        sec_form4_monthly_ingestion,
-        sec_form4_monthly_bigquery_summary,
+        sec_form4_daily_ingestion,
+        sec_form4_daily_bigquery_summary,
         dbt_sp500_insider_transactions_form4,
 
         sp500_stock_daily_staging_data,
@@ -146,9 +146,9 @@ definitions = Definitions(
         dbt_transformation_job_direct,
         sec_pipeline_direct_complete_job,
         sec_dedupe_only_job,
-        sec_form4_monthly_pipeline_job,
-        sec_form4_monthly_summary_job,
-        sec_form4_monthly_combined_job,
+        sec_form4_daily_pipeline_job,
+        sec_form4_daily_summary_job,
+        sec_form4_daily_combined_job,
 
         sp500_stock_daily_pipeline_job,
         sp500_companies_ingestion_job,

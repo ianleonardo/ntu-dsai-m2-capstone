@@ -129,7 +129,7 @@ Use Dagster asset **`sec_direct_ingestion`** (see [Orchestration Guide](orchestr
 #### Form 4 monthly files for current year (no BigQuery upload)
 
 When SEC quarterly bulk ZIPs are not yet published (for example, early in a new year), use:
-`scripts/download_sec_form4_monthly.py`.
+`scripts/download_sec_form4_daily.py`.
 
 This utility:
 - Downloads exact **Form `4`** filings from EDGAR daily indexes (not `4/A`)
@@ -139,7 +139,7 @@ This utility:
 
 ```bash
 cd /path/to/repo
-uv run --project . python scripts/download_sec_form4_monthly.py \
+uv run --project . python scripts/download_sec_form4_daily.py \
   --start-date 2026-01-01 \
   --end-date "$(date +%F)" \
   --user-agent "Your Name your_email@example.com" \
@@ -158,7 +158,7 @@ Expected outputs by month (`YYYY-MM`):
 Optional upload step:
 
 ```bash
-uv run --project . python scripts/download_sec_form4_monthly.py \
+uv run --project . python scripts/download_sec_form4_daily.py \
   --start-date 2026-01-01 \
   --end-date "$(date +%F)" \
   --user-agent "Your Name your_email@example.com" \
@@ -170,7 +170,7 @@ uv run --project . python scripts/download_sec_form4_monthly.py \
 ```
 
 Dagster job:
-- Job name: `sec_form4_monthly_pipeline_job`
+- Job name: `sec_form4_daily_pipeline_job`
 - Config supports date range explicitly:
 
 ```yaml
@@ -184,7 +184,7 @@ resume: true
 ```
 
 Post-load validation summary in Dagster:
-- Job name: `sec_form4_monthly_summary_job`
+- Job name: `sec_form4_daily_summary_job`
 - Reads row counts from BigQuery for the same date range and reports:
   - `sec_submission_rows`
   - `sec_reportingowner_rows`
@@ -199,11 +199,11 @@ bq_dataset: "insider_transactions"   # optional if BIGQUERY_DATASET is set
 ```
 
 Single combined Dagster run (recommended):
-- Job name: `sec_form4_monthly_combined_job`
+- Job name: `sec_form4_daily_combined_job`
 - Executes:
-  1. `sec_form4_monthly_ingestion` (download monthly files + optional BQ upload)
+  1. `sec_form4_daily_ingestion` (download monthly files + optional BQ upload)
   2. `dbt_sp500_insider_transactions_form4` (materialize `sp500_insider_transactions`)
-  3. `sec_form4_monthly_bigquery_summary` (BQ row-count summary for same range)
+  3. `sec_form4_daily_bigquery_summary` (BQ row-count summary for same range)
 
 ```yaml
 from_date: "2026-01-01"

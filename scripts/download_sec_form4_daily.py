@@ -12,6 +12,8 @@ Optional `--upload-bigquery` appends TSVs then runs the same post-load dedupe as
 when present). Set `SEC_SKIP_DEDUPE=1` to skip dedupe.
 """
 
+# NOTE: this file was renamed from download_sec_form4_monthly.py
+
 from __future__ import annotations
 
 import argparse
@@ -186,7 +188,7 @@ class RateLimitedSession:
                 raise
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
-                backoff = min(2 ** i, 10)
+                backoff = min(2**i, 10)
                 time.sleep(backoff)
         if last_exc:
             raise last_exc
@@ -212,7 +214,7 @@ class RateLimitedSession:
                 raise
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
-                backoff = min(2 ** i, 10)
+                backoff = min(2**i, 10)
                 time.sleep(backoff)
         if last_exc:
             raise last_exc
@@ -380,13 +382,18 @@ def parse_ownership_xml(
                     "TRANS_FORM_TYPE": safe_text(coding, "transactionFormType"),
                     "TRANS_CODE": safe_text(coding, "transactionCode"),
                     "EQUITY_SWAP_INVOLVED": true01(safe_text(coding, "equitySwapInvolved")),
-                    "TRANS_SHARES": safe_text(amounts.find("transactionShares") if amounts is not None else None, "value"),
+                    "TRANS_SHARES": safe_text(
+                        amounts.find("transactionShares") if amounts is not None else None,
+                        "value",
+                    ),
                     "TRANS_PRICEPERSHARE": safe_text(
                         amounts.find("transactionPricePerShare") if amounts is not None else None,
                         "value",
                     ),
                     "TRANS_ACQUIRED_DISP_CD": safe_text(
-                        amounts.find("transactionAcquiredDisposedCode") if amounts is not None else None,
+                        amounts.find("transactionAcquiredDisposedCode")
+                        if amounts is not None
+                        else None,
                         "value",
                     ),
                     "SHRS_OWND_FOLWNG_TRANS": safe_text(
@@ -397,7 +404,9 @@ def parse_ownership_xml(
                         own.find("directOrIndirectOwnership") if own is not None else None,
                         "value",
                     ),
-                    "NATURE_OF_OWNERSHIP": safe_text(own.find("natureOfOwnership") if own is not None else None, "value"),
+                    "NATURE_OF_OWNERSHIP": safe_text(
+                        own.find("natureOfOwnership") if own is not None else None, "value"
+                    ),
                 }
             )
 
@@ -459,7 +468,9 @@ def read_tsv_dicts(path: Path) -> List[Dict[str, str]]:
         reader = csv.DictReader(f, delimiter="\t")
         rows: List[Dict[str, str]] = []
         for r in reader:
-            rows.append({k: (v if v is not None else "") for k, v in r.items() if k is not None})
+            rows.append(
+                {k: (v if v is not None else "") for k, v in r.items() if k is not None}
+            )
         return rows
 
 
@@ -852,3 +863,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

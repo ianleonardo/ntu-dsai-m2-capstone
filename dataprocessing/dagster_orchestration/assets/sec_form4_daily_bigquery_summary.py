@@ -1,5 +1,5 @@
 """
-Dagster asset: summarize Form 4 monthly BigQuery loads for a date range.
+Dagster asset: summarize Form 4 daily-index BigQuery loads for a date range.
 """
 
 import os
@@ -25,7 +25,7 @@ COALESCE(
 )"""
 
 
-class SecForm4MonthlyBigQuerySummaryConfig(Config):
+class SecForm4DailyBigQuerySummaryConfig(Config):
     from_date: str
     to_date: str
     bq_project_id: str = ""
@@ -33,12 +33,12 @@ class SecForm4MonthlyBigQuerySummaryConfig(Config):
 
 
 @asset(
-    key="sec_form4_monthly_bigquery_summary",
-    description="BigQuery row-count summary for Form4 tables in a date range.",
-    deps=["sec_form4_monthly_ingestion"],
+    key="sec_form4_daily_bigquery_summary",
+    description="BigQuery row-count summary for Form 4 tables in a date range.",
+    deps=["sec_form4_daily_ingestion"],
 )
-def sec_form4_monthly_bigquery_summary(
-    context: AssetExecutionContext, config: SecForm4MonthlyBigQuerySummaryConfig
+def sec_form4_daily_bigquery_summary(
+    context: AssetExecutionContext, config: SecForm4DailyBigQuerySummaryConfig
 ) -> MaterializeResult:
     project_id = (config.bq_project_id or os.getenv("GOOGLE_PROJECT_ID", "")).strip()
     dataset = (config.bq_dataset or os.getenv("BIGQUERY_DATASET", "insider_transactions")).strip()
@@ -113,4 +113,7 @@ def sec_form4_monthly_bigquery_summary(
             "distinct_accession_numbers": distinct_accessions,
         }
     )
+
+
+__all__ = ["sec_form4_daily_bigquery_summary", "SecForm4DailyBigQuerySummaryConfig"]
 

@@ -147,7 +147,7 @@ def dbt_insider_transformation(context: AssetExecutionContext) -> MaterializeRes
 @asset(
     group_name="dbt_transformation",
     description="Materialize sp500_insider_transactions (and dependencies) after Form4 monthly ingestion.",
-    deps=["sec_form4_monthly_ingestion"],
+    deps=["sec_form4_daily_ingestion"],
 )
 def dbt_sp500_insider_transactions_form4(context: AssetExecutionContext) -> MaterializeResult:
     """
