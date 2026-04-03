@@ -6,7 +6,19 @@
 
 This project is a comprehensive Stock Analytics Data Pipeline designed to ingest, process, and analyze financial market data and SEC insider trading information. Built as part of the NTU DSAI Module 2 Capstone, it automates the end-to-end flow from raw data extraction to analytics-ready models in Google BigQuery, complete with a modern dashboard UI for visualization and analysis.
 
+### Business Value Proposition: Insider Alpha
+
+**Insider Alpha** offers a distinct competitive advantage for Portfolio Managers & Institutional Investors:
+
+- **Quantifiable Alpha Generation:** Transforms complex SEC Form 4 filings into high-conviction investment signals, capturing alpha in the critical 1-6 month post-filing window.
+- **Operational Efficiency:** Streamlines workflows by automatically filtering non-discretionary "noise" (e.g., option exercises) from over 40,000 annual filings.
+- **Strategic Alignment:** Empowers top-down thematic allocation backed by bottom-up insider conviction and auditable, data-driven decision governance.
+
+![Insider Alpha UI](images/insider-ms.png)
+
 ### Architecture Overview
+
+![Insider Alpha Architecture](images/insider_tech_architecture.png)
 
 The pipeline follows a modern ELT (Extract, Load, Transform) architecture orchestrated by Dagster:
 
@@ -564,8 +576,13 @@ uv run dagster dev
 # Access Dagster UI at http://localhost:3000
 
 # 4. Launch dashboard (optional)
-uv run uvicorn visualisation.backend.main:app --reload &
-cd visualisation/frontend && npm run dev
+## Open new terminal
+cd visualisation/backend
+uv run uvicorn main:app --reload --port 8000
+
+## Open new terminal
+cd visualisation/frontend
+npm run dev
 ```
 
 ### Technology Stack

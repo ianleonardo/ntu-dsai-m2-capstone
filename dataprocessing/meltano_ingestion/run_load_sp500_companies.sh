@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download S&P 500 constituents CSV -> JSONL staging -> upload to GCS -> load BigQuery.
+# Download S&P 500 constituents CSV -> JSONL staging -> load BigQuery.
 #
 # Usage:
 #   uv run --project .. bash run_load_sp500_companies.sh

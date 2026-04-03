@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from dotenv import dotenv_values
 from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataValue, asset
 
 # File path: .../dataprocessing/dagster_orchestration/assets/sp500_stock_daily_integration.py
@@ -131,14 +132,22 @@ def bigquery_sp500_stock_daily_data(
     config: Sp500StockDailyLoadConfig,
 ) -> MaterializeResult:
     """
-    Runs Meltano job:
-      meltano run tap-jsonl-sp500-stock-daily target-bigquery
+    Loads staging JSONL via Meltano with a pinned Singer catalog so nullable numerics
+    (e.g. SMA200) stay FLOAT64 in BigQuery instead of inferred STRING from type ["null"].
     """
     meltano_dir = project_root / "dataprocessing" / "meltano_ingestion"
+    catalog_path = meltano_dir / "catalogs" / "sp500_stock_daily.catalog.json"
+    if not catalog_path.is_file():
+        raise FileNotFoundError(f"Missing Meltano catalog: {catalog_path}")
 
     env = os.environ.copy()
-    # Wrapper scripts typically load these from .env; we let users manage env/ADC.
-    if "GOOGLE_CLOUD_PROJECT" not in env:
+    # Match shell wrappers: load repo `.env` so TARGET_BIGQUERY_CREDENTIALS_PATH / project IDs apply.
+    _dotenv = project_root / ".env"
+    if _dotenv.is_file():
+        for _k, _v in dotenv_values(_dotenv).items():
+            if _v is not None and str(_v).strip() != "":
+                env[str(_k)] = str(_v)
+    if "GOOGLE_CLOUD_PROJECT" not in env or not env.get("GOOGLE_CLOUD_PROJECT"):
         env["GOOGLE_CLOUD_PROJECT"] = env.get("GOOGLE_PROJECT_ID", "")
 
     try:
@@ -152,12 +161,20 @@ def bigquery_sp500_stock_daily_data(
             env=env,
         )
 
-        context.log.info("Running Meltano load job: tap-jsonl-sp500-stock-daily -> target-bigquery")
+        context.log.info(
+            "Running Meltano el: tap-jsonl-sp500-stock-daily -> target-bigquery "
+            f"(catalog={catalog_path.name})"
+        )
+        # Full refresh: tap-jsonl bookmarks by file mtime; without this, re-runs often skip the
+        # file and load 0 rows while still exiting 0 — looks like "nothing in BigQuery".
         run_cmd = [
             "meltano",
-            "run",
+            "el",
             "tap-jsonl-sp500-stock-daily",
             "target-bigquery",
+            "--catalog",
+            str(catalog_path.relative_to(meltano_dir)),
+            "--full-refresh",
         ]
         run_proc = subprocess.run(
             run_cmd,
@@ -166,25 +183,35 @@ def bigquery_sp500_stock_daily_data(
             text=True,
             env=env,
         )
-        context.log.info(run_proc.stdout)
+        if run_proc.stdout.strip():
+            context.log.info(run_proc.stdout)
+        if run_proc.stderr.strip():
+            for _ln in run_proc.stderr.strip().splitlines():
+                context.log.warning(_ln)
         if run_proc.returncode != 0:
             context.log.error(run_proc.stderr)
-            raise RuntimeError(f"Meltano run failed: {run_proc.stderr}")
+            raise RuntimeError(f"Meltano el failed: {run_proc.stderr}")
 
-        # Best-effort parse.
-        numbers = re.findall(r"\b(\d+)\b", run_proc.stdout)
-        rows_loaded = int(numbers[0]) if numbers else "Unknown"
+        combined = f"{run_proc.stdout}\n{run_proc.stderr}"
+        m = re.search(r'"metric"\s*:\s*"record_count"\s*,\s*"value"\s*:\s*(\d+)', combined)
+        rows_loaded: int | str = int(m.group(1)) if m else "Unknown"
+        if rows_loaded == "Unknown":
+            m2 = re.search(r"Processed\s+(\d+)\s+rows\s+from", combined)
+            rows_loaded = int(m2.group(1)) if m2 else "Unknown"
 
         return MaterializeResult(
             metadata={
                 "start": config.start,
                 "end": config.end,
-                "meltano_job": "tap-jsonl-sp500-stock-daily target-bigquery",
+                "meltano_job": "meltano el ... --catalog ... --full-refresh",
                 "bigquery_project": "ntu-dsai-488112",
                 "bigquery_dataset": "insider_transactions",
-                "rows_loaded": rows_loaded,
+                "bigquery_table": "SP500_STOCK_DAILY",
+                "tap_rows_emitted": rows_loaded,
                 "load_status": "success",
-                "meltano_output_tail": MetadataValue.md(f"```\n{run_proc.stdout[-2000:]}\n```"),
+                "meltano_output_tail": MetadataValue.md(
+                    f"```\n{(combined.strip() or '(no stdout/stderr)')[-4000:]}\n```"
+                ),
             }
         )
     except Exception as e:

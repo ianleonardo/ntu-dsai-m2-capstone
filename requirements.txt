@@ -1,8 +1,7 @@
 # Core (sync scripts, APIs)
 requests>=2.28.0
-google-cloud-storage>=2.10.0
 google-api-core>=2.11.0
 python-dotenv>=1.0.0
 
-# Meltano (GCS → BigQuery EL pipeline; optional: pip install -r requirements.txt)
+# Meltano (optional: pip install -r requirements.txt)
 meltano>=3.0,<5

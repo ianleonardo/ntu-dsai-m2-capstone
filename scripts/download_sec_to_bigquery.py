@@ -2,8 +2,8 @@
 """
 Simplified SEC Data Pipeline: Direct download from SEC website to BigQuery.
 
-This script eliminates the GCS intermediate step and streams SEC data directly
-to BigQuery, reducing complexity, cost, and processing time.
+This script streams SEC data directly to BigQuery, reducing complexity, cost,
+and processing time.
 
 Usage:
     python scripts/download_sec_to_bigquery.py 2024

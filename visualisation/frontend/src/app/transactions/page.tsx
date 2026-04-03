@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import TransactionTable from "@/components/TransactionTable";
@@ -24,6 +25,7 @@ const PAGE_SIZE = 50;
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState(() => defaultStoredDateRange());
   const [appliedFilters, setAppliedFilters] = useState<UnifiedFiltersState>(DEFAULT_FILTERS);
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
@@ -31,31 +33,40 @@ export default function TransactionsPage() {
   const [totalRows, setTotalRows] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [tickerClose, setTickerClose] = useState<Map<string, number>>(() => new Map());
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  useLayoutEffect(() => {
+  const pathname = usePathname();
+
+  useEffect(() => {
     const stored = loadStoredDateRange();
     if (stored) {
       setDateRange(stored);
       setAppliedRange(stored);
     }
     setAppliedFilters(loadUnifiedFilters());
-  }, []);
+    // Auto-refresh data on navigation
+    setRefreshTrigger((p) => p + 1);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await ensureSearchDirectoryLoaded();
-      if (cancelled) return;
-      const hit = loadSearchDirectoryCache();
-      const m = new Map<string, number>();
-      if (hit?.stocks) {
-        for (const r of hit.stocks) {
-          if (r.last_close != null && Number.isFinite(r.last_close)) {
-            m.set(r.ticker.toUpperCase(), r.last_close);
+      try {
+        await ensureSearchDirectoryLoaded();
+        if (cancelled) return;
+        const hit = loadSearchDirectoryCache();
+        const m = new Map<string, number>();
+        if (hit?.stocks) {
+          for (const r of hit.stocks) {
+            if (r.last_close != null && Number.isFinite(r.last_close)) {
+              m.set(r.ticker.toUpperCase(), r.last_close);
+            }
           }
         }
+        setTickerClose(m);
+      } catch (e) {
+        console.warn("Failed to warm search directory:", e);
       }
-      setTickerClose(m);
     })();
     return () => {
       cancelled = true;
@@ -64,6 +75,7 @@ export default function TransactionsPage() {
 
   const handleDateRange = useCallback((r: { start: string; end: string }) => {
     setDateRange(r);
+    saveStoredDateRange(r);
   }, []);
 
   const appliedFilter = useMemo(
@@ -78,6 +90,7 @@ export default function TransactionsPage() {
   const loadTransactions = useCallback(async () => {
     if (!appliedRange.start || !appliedRange.end) return;
     setLoading(true);
+    setError(null);
     try {
       const sizeReq = sizeTierToValues(appliedFilters.size);
       const data = await api.getTransactions({
@@ -97,10 +110,11 @@ export default function TransactionsPage() {
       setHasMore(Boolean(data.has_more));
     } catch (e) {
       console.error("Failed to load transactions:", e);
+      setError(e instanceof Error ? e.message : "An unexpected error occurred while fetching transactions.");
     } finally {
       setLoading(false);
     }
-  }, [appliedRange.start, appliedRange.end, appliedFilter.search, sectorKey, roleKey, appliedFilters.size, page]);
+  }, [appliedRange.start, appliedRange.end, appliedFilter.search, sectorKey, roleKey, appliedFilters.size, page, refreshTrigger]);
 
   useEffect(() => {
     void loadTransactions();
@@ -111,6 +125,7 @@ export default function TransactionsPage() {
     setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
     setPage(1);
+    setRefreshTrigger((p) => p + 1);
   }, [dateRange]);
 
   const totalPages =
@@ -137,6 +152,20 @@ export default function TransactionsPage() {
         {loading ? (
           <div className="w-full h-[600px] bg-card animate-pulse rounded-2xl border border-border flex items-center justify-center">
             <p className="text-muted-foreground font-medium animate-bounce italic">Loading transactions...</p>
+          </div>
+        ) : error ? (
+          <div className="w-full h-[400px] bg-card rounded-2xl border border-destructive/30 flex flex-col items-center justify-center p-8 text-center">
+            <div className="bg-destructive/10 p-4 rounded-full mb-4">
+              <span className="text-destructive text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-foreground font-bold text-xl mb-2">Failed to load transactions</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+            <button 
+              onClick={() => void loadTransactions()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <div className="space-y-3">

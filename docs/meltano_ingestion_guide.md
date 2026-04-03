@@ -81,32 +81,42 @@ Expected plugins:
 ### SEC Insider Data Ingestion
 
 #### What It Does
-- Downloads SEC Form 3/4/5 data from GCS bucket
-- Processes quarterly TSV files into staging CSVs
-- Loads 6 tables: SUBMISSION, REPORTINGOWNER, NONDERIV_TRANS, etc.
-- Applies BigQuery partitioning by year
-- Uses upsert logic to handle duplicate keys
+- Reads **local tab-delimited** SEC extract files from `dataprocessing/meltano_ingestion/staging/`
+- Runs Meltano job **`load-sec-insider`**: `tap-csv` → `target-bigquery`
+- Loads **three** streams into BigQuery (see `meltano.yml`): `SEC_SUBMISSION`, `SEC_REPORTINGOWNER`, `SEC_NONDERIV_TRANS`
+- Loader uses **`upsert: true`** on the tap’s key columns so re-runs merge instead of blindly duplicating
+
+This repo does **not** ship `run_load_sec_insider.sh`. Use the Meltano job below, or use **Dagster** `sec_direct_ingestion` to load SEC data straight from the SEC website into BigQuery (see [Orchestration Guide](orchestration.md)).
+
+#### Staging files (required before `load-sec-insider`)
+
+Place these files under `dataprocessing/meltano_ingestion/staging/` (paths match `meltano.yml`):
+
+| File | Meltano entity | Keys |
+|------|----------------|------|
+| `SUBMISSION.csv` | `SEC_SUBMISSION` | `ACCESSION_NUMBER` |
+| `REPORTINGOWNER.csv` | `SEC_REPORTINGOWNER` | `ACCESSION_NUMBER`, `RPTOWNERCIK` |
+| `NONDERIV_TRANS.csv` | `SEC_NONDERIV_TRANS` | `ACCESSION_NUMBER`, `NONDERIV_TRANS_SK` |
+
+Delimiter in config is **tab** (`\t`). How you obtain these files (SEC bulk download, your own ETL, etc.) is outside this wrapper; the Meltano step only loads what is already in `staging/`.
 
 #### How to Run
 
-**Option A: Full Pipeline (Recommended)**
+**Option A: Meltano job (recommended for CSV staging)**
 ```bash
-# From project root
 cd dataprocessing/meltano_ingestion
-uv run --project .. bash run_load_sec_insider.sh
-
-# With specific year/quarter
-uv run --project .. bash run_load_sec_insider.sh --year 2025 --quarter q1
+uv run --project .. meltano install    # first time / after meltano.yml changes
+uv run --project .. meltano run load-sec-insider
 ```
 
-**Option B: Manual Steps**
+**Option B: Explicit tap → target**
 ```bash
-# Step 1: Sync from GCS to staging
-uv run --project .. python ../scripts/sync_sec_from_gcs.py
-
-# Step 2: Load into BigQuery
+cd dataprocessing/meltano_ingestion
 uv run --project .. meltano run tap-csv target-bigquery
 ```
+
+**Option C: Direct SEC → BigQuery (no Meltano for these tables)**  
+Use Dagster asset **`sec_direct_ingestion`** (see [Orchestration Guide](orchestration.md)).
 
 #### Tables Loaded
 
@@ -115,6 +125,96 @@ uv run --project .. meltano run tap-csv target-bigquery
 | SEC_SUBMISSION | ACCESSION_NUMBER | XML submissions, filer/issuer |
 | SEC_REPORTINGOWNER | ACCESSION_NUMBER, RPTOWNERCIK | Reporting owner details |
 | SEC_NONDERIV_TRANS | ACCESSION_NUMBER, NONDERIV_TRANS_SK | Non-derivative transactions |
+
+#### Form 4 monthly files for current year (no BigQuery upload)
+
+When SEC quarterly bulk ZIPs are not yet published (for example, early in a new year), use:
+`scripts/download_sec_form4_daily.py`.
+
+This utility:
+- Downloads exact **Form `4`** filings from EDGAR daily indexes (not `4/A`)
+- Parses ownership XML and extracts only `SUBMISSION`, `REPORTINGOWNER`, `NONDERIV_TRANS`
+- Writes monthly TSV files and local run state/failure logs
+- Can optionally upload generated monthly TSVs to BigQuery tables (`sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`)
+
+```bash
+cd /path/to/repo
+uv run --project . python scripts/download_sec_form4_daily.py \
+  --start-date 2026-01-01 \
+  --end-date "$(date +%F)" \
+  --user-agent "Your Name your_email@example.com" \
+  --output-dir "dataprocessing/meltano_ingestion/staging/sec_form4_2026_monthly" \
+  --resume
+```
+
+Expected outputs by month (`YYYY-MM`):
+- `SUBMISSION_YYYY-MM.tsv`
+- `REPORTINGOWNER_YYYY-MM.tsv`
+- `NONDERIV_TRANS_YYYY-MM.tsv`
+- `state_YYYY-MM.json` (resume state)
+- `failures_YYYY-MM.tsv` (per-filing errors)
+- `run_summary.json` (run totals)
+
+Optional upload step:
+
+```bash
+uv run --project . python scripts/download_sec_form4_daily.py \
+  --start-date 2026-01-01 \
+  --end-date "$(date +%F)" \
+  --user-agent "Your Name your_email@example.com" \
+  --output-dir "dataprocessing/meltano_ingestion/staging/sec_form4_2026_monthly" \
+  --resume \
+  --upload-bigquery \
+  --bq-project-id "ntu-dsai-488112" \
+  --bq-dataset "insider_transactions"
+```
+
+Dagster job:
+- Job name: `sec_form4_daily_pipeline_job`
+- Config supports date range explicitly:
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+user_agent: "Your Name your_email@example.com"
+upload_bigquery: true
+bq_project_id: "ntu-dsai-488112"
+bq_dataset: "insider_transactions"
+resume: true
+```
+
+Post-load validation summary in Dagster:
+- Job name: `sec_form4_daily_summary_job`
+- Reads row counts from BigQuery for the same date range and reports:
+  - `sec_submission_rows`
+  - `sec_reportingowner_rows`
+  - `sec_nonderiv_trans_rows`
+  - `distinct_accession_numbers`
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+bq_project_id: "ntu-dsai-488112"   # optional if GOOGLE_PROJECT_ID is set
+bq_dataset: "insider_transactions"   # optional if BIGQUERY_DATASET is set
+```
+
+Single combined Dagster run (recommended):
+- Job name: `sec_form4_daily_combined_job`
+- Executes:
+  1. `sec_form4_daily_ingestion` (download monthly files + optional BQ upload)
+  2. `dbt_sp500_insider_transactions_form4` (materialize `sp500_insider_transactions`)
+  3. `sec_form4_daily_bigquery_summary` (BQ row-count summary for same range)
+
+```yaml
+from_date: "2026-01-01"
+to_date: "2026-01-31"
+user_agent: "Your Name your_email@example.com"
+upload_bigquery: true
+bq_project_id: "ntu-dsai-488112"
+bq_dataset: "insider_transactions"
+resume: true
+max_requests_per_second: 5.0
+```
 
 ### S&P 500 Companies Ingestion
 
@@ -198,24 +298,28 @@ uv run meltano run load-sec-tickers
 
 ### All Jobs
 
+There is **no** `job:all` in `meltano.yml`. Run each job when needed, for example:
+
 ```bash
-# Run all configured jobs
-uv run meltano run job:all
+cd dataprocessing/meltano_ingestion
+uv run --project .. meltano run load-sec-insider
+uv run --project .. meltano run load-sec-tickers
+uv run --project .. meltano run load-sp500-companies
+uv run --project .. meltano run load-sp500-stock-daily
 ```
 
 ## Helper Scripts
 
-The project includes shell scripts for common tasks:
+Shell wrappers live in `dataprocessing/meltano_ingestion/` (SEC insider CSV load has **no** wrapper — use `meltano run load-sec-insider`):
 
 ```bash
-# Make scripts executable
-chmod +x *.sh
+cd dataprocessing/meltano_ingestion
+chmod +x *.sh   # optional
 
 # Available scripts
-./run_load_sec_insider.sh      # SEC data ingestion
-./run_load_sp500_companies.sh  # S&P 500 companies
-./run_load_sp500_stock_daily.sh # Market data
-./run_load_sec_tickers.sh       # SEC tickers
+./run_load_sp500_companies.sh   # S&P 500 companies → JSONL → Meltano
+./run_load_sp500_stock_daily.sh # yfinance → JSONL → Meltano
+./run_load_sec_tickers.sh      # SEC company_tickers.json → JSONL → Meltano
 ```
 
 ## Troubleshooting
@@ -267,8 +371,7 @@ uv run --project .. meltano install
 - Verify project ID matches: `ntu-dsai-488112`
 
 **Data Not Found**
-- Check GCS bucket structure: `gs://bucket/sec-data/year/yearq1/`
-- Ensure service account has Storage Object Viewer permission
+- For **Meltano SEC insider**: confirm `staging/SUBMISSION.csv`, `REPORTINGOWNER.csv`, `NONDERIV_TRANS.csv` exist and are tab-delimited as configured.
 
 **Duplicate Key Errors**
 - This is normal with `upsert: true` - existing rows are updated
@@ -281,28 +384,28 @@ uv run --project .. meltano install
 Fine-tune ingestion behavior:
 
 ```env
-# SEC Data Configuration
-SEC_LOAD_YEAR=2025
-SEC_LOAD_QUARTER=q1
-GCS_BUCKET=dsai-m2-bucket
-GCS_SEC_PREFIX=sec-data
-STAGING_DIR=staging
-
-# BigQuery Configuration
+# BigQuery / GCP (Meltano target-bigquery)
+GOOGLE_PROJECT_ID=ntu-dsai-488112
+GOOGLE_CLOUD_PROJECT=ntu-dsai-488112
 BIGQUERY_DATASET=insider_transactions
+TARGET_BIGQUERY_CREDENTIALS_PATH=/absolute/path/to/service-account.json
+
+# (No GCS setup in this project)
 ```
 
-### Accumulating Multiple Years
+Variables such as **`SEC_YEAR`**, **`SEC_LOAD_QUARTER`**, and related fields are used by **Dagster / `scripts/download_sec_to_bigquery.py`** (direct SEC pipeline), **not** by `tap-csv` in Meltano. For year/quarter loads via Dagster, see [Orchestration Guide](orchestration.md).
 
-With `upsert: true`, you can safely load multiple years:
+### Accumulating Multiple Years / Quarters (Meltano CSV path)
+
+With **`upsert: true`**, you can run `load-sec-insider` again after replacing or appending extracts in `staging/` (same key columns merge in BigQuery). There is no wrapper script; repeat:
 
 ```bash
-# Load 2024 data
-SEC_LOAD_YEAR=2024 uv run --project .. bash run_load_sec_insider.sh
-
-# Load 2025 data (updates existing rows)
-SEC_LOAD_YEAR=2025 uv run --project .. bash run_load_sec_insider.sh
+cd dataprocessing/meltano_ingestion
+# Update staging/*.csv for the next period, then:
+uv run --project .. meltano run load-sec-insider
 ```
+
+For automated year/quarter pulls without maintaining CSV staging, prefer **Dagster `sec_direct_ingestion`**.
 
 ## Monitoring and Validation
 

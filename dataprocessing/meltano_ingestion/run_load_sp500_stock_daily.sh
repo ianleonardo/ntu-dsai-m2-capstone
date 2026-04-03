@@ -27,10 +27,14 @@ else
   python "$REPO_ROOT/scripts/fetch_sp500_stock_daily_yfinance_to_jsonl.py" "$@"
 fi
 
-echo "=== Running tap-jsonl-sp500-stock-daily target-bigquery ==="
+echo "=== Running tap-jsonl-sp500-stock-daily target-bigquery (pinned catalog) ==="
 if command -v uv &>/dev/null; then
-  uv run --project "$REPO_ROOT" meltano run tap-jsonl-sp500-stock-daily target-bigquery
+  uv run --project "$REPO_ROOT" meltano el tap-jsonl-sp500-stock-daily target-bigquery \
+    --catalog catalogs/sp500_stock_daily.catalog.json \
+    --full-refresh
 else
-  meltano run tap-jsonl-sp500-stock-daily target-bigquery
+  meltano el tap-jsonl-sp500-stock-daily target-bigquery \
+    --catalog catalogs/sp500_stock_daily.catalog.json \
+    --full-refresh
 fi
 

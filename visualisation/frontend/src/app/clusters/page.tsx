@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import UnifiedFilterBar from "@/components/UnifiedFilterBar";
 import { cn, formatIsoDateLabel } from "@/lib/utils";
@@ -130,8 +131,10 @@ function clusterSortValue(
       return (r.ticker || "").toUpperCase();
     case "signal":
       return r.insider_count;
-    case "window":
-      return windowDays(r.first_trans, r.last_trans);
+    case "window": {
+      const t = Date.parse(isoDay(r.first_trans) + "T12:00:00");
+      return Number.isFinite(t) ? t : 0;
+    }
     case "value":
       return r.cluster_value;
     case "return":
@@ -226,6 +229,7 @@ export default function ClustersPage() {
   const [appliedRange, setAppliedRange] = useState(() => defaultStoredDateRange());
   const [rows, setRows] = useState<ClusterRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [tickerClose, setTickerClose] = useState<Map<string, number>>(() => new Map());
   const [priceBelowCostOnly, setPriceBelowCostOnly] = useState(ui0.priceBelowCostOnly);
   const [sortKey, setSortKey] = useState<ClusterSortKey>(ui0.sortKey);
@@ -236,8 +240,11 @@ export default function ClustersPage() {
   breakdownRef.current = breakdownByKey;
   const [breakdownLoadingKey, setBreakdownLoadingKey] = useState<string | null>(null);
   const [selectedChart, setSelectedChart] = useState<{ ticker: string; transDate: string } | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  useLayoutEffect(() => {
+  const pathname = usePathname();
+
+  useEffect(() => {
     const stored = loadStoredDateRange();
     if (stored) {
       setDateRange(stored);
@@ -250,7 +257,8 @@ export default function ClustersPage() {
     setSortKey(p.sortKey);
     setSortDir(p.sortDir);
     setAppliedFilters(loadUnifiedFilters());
-  }, []);
+    setRefreshTrigger((prev) => prev + 1);
+  }, [pathname]);
 
   useEffect(() => {
     saveClustersUiPersisted({
@@ -267,18 +275,22 @@ export default function ClustersPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      await ensureSearchDirectoryLoaded();
-      if (cancelled) return;
-      const hit = loadSearchDirectoryCache();
-      const m = new Map<string, number>();
-      if (hit?.stocks) {
-        for (const r of hit.stocks) {
-          if (r.last_close != null && Number.isFinite(r.last_close)) {
-            m.set(r.ticker.toUpperCase(), r.last_close);
+      try {
+        await ensureSearchDirectoryLoaded();
+        if (cancelled) return;
+        const hit = loadSearchDirectoryCache();
+        const m = new Map<string, number>();
+        if (hit?.stocks) {
+          for (const r of hit.stocks) {
+            if (r.last_close != null && Number.isFinite(r.last_close)) {
+              m.set(r.ticker.toUpperCase(), r.last_close);
+            }
           }
         }
+        setTickerClose(m);
+      } catch (e) {
+        console.warn("Failed to warm search directory:", e);
       }
-      setTickerClose(m);
     })();
     return () => {
       cancelled = true;
@@ -287,6 +299,7 @@ export default function ClustersPage() {
 
   const handleDateRange = useCallback((r: { start: string; end: string }) => {
     setDateRange(r);
+    saveStoredDateRange(r);
   }, []);
 
   const appliedFilter = useMemo(
@@ -301,6 +314,7 @@ export default function ClustersPage() {
   const loadClusters = useCallback(async () => {
     if (!appliedRange.start || !appliedRange.end) return;
     setLoading(true);
+    setError(null);
     try {
       const sizeReq = sizeTierToValues(appliedFilters.size);
       const res = await api.getClusters({
@@ -322,6 +336,7 @@ export default function ClustersPage() {
     } catch (e) {
       console.error(e);
       setRows([]);
+      setError(e instanceof Error ? e.message : "An unexpected error occurred while fetching clusters.");
     } finally {
       setLoading(false);
     }
@@ -334,6 +349,7 @@ export default function ClustersPage() {
     clusterSectorKey,
     clusterRoleKey,
     appliedFilters.size,
+    refreshTrigger,
   ]);
 
   useEffect(() => {
@@ -344,6 +360,7 @@ export default function ClustersPage() {
     saveStoredDateRange(dateRange);
     setAppliedFilters(loadUnifiedFilters());
     setAppliedRange({ start: dateRange.start, end: dateRange.end });
+    setRefreshTrigger((p) => p + 1);
   }, [dateRange]);
 
   const onSort = useCallback(
@@ -513,6 +530,20 @@ export default function ClustersPage() {
         {loading ? (
           <div className="w-full min-h-[420px] bg-card animate-pulse rounded-2xl border border-border flex items-center justify-center">
             <p className="text-muted-foreground font-medium animate-bounce italic">Loading clusters…</p>
+          </div>
+        ) : error ? (
+          <div className="w-full h-[400px] bg-card rounded-2xl border border-destructive/30 flex flex-col items-center justify-center p-8 text-center">
+            <div className="bg-destructive/10 p-4 rounded-full mb-4">
+              <span className="text-destructive text-2xl">⚠️</span>
+            </div>
+            <h3 className="text-foreground font-bold text-xl mb-2">Failed to load clusters</h3>
+            <p className="text-muted-foreground mb-6 max-w-md">{error}</p>
+            <button 
+              onClick={() => void loadClusters()}
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : (
           <div className="space-y-2">

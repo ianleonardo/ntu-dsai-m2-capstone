@@ -1,4 +1,4 @@
-# Meltano project: SEC data (insider forms + company tickers) — GCS/JSON to BigQuery
+# Meltano project: SEC data (insider forms + company tickers) — local staging to BigQuery
 # See docs/meltano_sec_ingestion_guide.md for usage.
 
 default_environment: dev
@@ -63,6 +63,8 @@ plugins:
       stream_name: SP500_STOCK_DAILY
       primary_keys: ["symbol", "date"]
       encoding: utf-8
+      # Sample enough lines so nullable numerics (e.g. SMA200) are not inferred as type ["null"] only.
+      schema_sample_records: 8000
 
   loaders:
   - name: target-bigquery
@@ -95,6 +97,8 @@ jobs:
   - name: load-sp500-companies
     tasks:
       - tap-jsonl-sp500 target-bigquery
+  # Prefer: meltano el tap-jsonl-sp500-stock-daily target-bigquery --catalog catalogs/sp500_stock_daily.catalog.json
+  # (plain meltano run omits the catalog and can break BQ merge typing for SMA200.)
   - name: load-sp500-stock-daily
     tasks:
       - tap-jsonl-sp500-stock-daily target-bigquery

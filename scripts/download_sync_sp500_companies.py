@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-Download S&P 500 constituents CSV, upload to GCS, and write JSONL for Meltano.
+Download S&P 500 constituents CSV and write JSONL for Meltano.
 
 Source:
   https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv
 
 Output:
   - Writes JSONL to <staging-dir>/sp500_companies.jsonl for tap-jsonl.
-  - Uploads the raw CSV to gs://<bucket>/<gcs_blob_path> (default: sp500-data/constituents.csv).
 """
 
 from __future__ import annotations
@@ -18,19 +17,15 @@ import io
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from google.api_core import retry
-from google.cloud import storage
 
 
 SP500_CONSTITUENTS_URL = (
     "https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv"
 )
-DEFAULT_GCS_BLOB_PATH = "sp500-data/constituents.csv"
 
 # DataHub is public; no special headers required, but keep it polite.
 DEFAULT_USER_AGENT = "ntu-dsai-m2-capstone/1.0 (data engineering)"
@@ -76,43 +71,9 @@ def write_jsonl(records: list[dict[str, str]], out_path: Path) -> int:
     return count
 
 
-def upload_to_gcs(
-    bucket_name: str,
-    blob_path: str,
-    local_path: Path,
-) -> None:
-    load_dotenv()
-    project_id = os.getenv("GOOGLE_PROJECT_ID")
-    if not project_id:
-        raise RuntimeError(
-            "Missing GOOGLE_PROJECT_ID in env (required for GCS uploads)."
-        )
-
-    # If only the BigQuery credentials path is configured, reuse it for GCS.
-    # google-cloud-storage reads credentials via GOOGLE_APPLICATION_CREDENTIALS.
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        target_creds = os.getenv("TARGET_BIGQUERY_CREDENTIALS_PATH")
-        if target_creds:
-            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = target_creds
-
-    storage_client = storage.Client(project=project_id)
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_path)
-    blob.upload_from_filename(
-        str(local_path),
-        timeout=300,
-        retry=retry.Retry(
-            initial=1.0,
-            maximum=60.0,
-            multiplier=2.0,
-            deadline=300.0,
-        ),
-    )
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download S&P 500 constituents.csv, upload to GCS, and write JSONL for Meltano."
+        description="Download S&P 500 constituents.csv and write JSONL for Meltano."
     )
     parser.add_argument(
         "--staging-dir",
@@ -122,16 +83,6 @@ def main() -> None:
         / "meltano_ingestion"
         / "staging",
         help="Directory to write sp500_companies.jsonl (default: meltano_ingestion/staging).",
-    )
-    parser.add_argument(
-        "--bucket",
-        default=os.getenv("GCS_BUCKET_NAME", "dsai-m2-bucket"),
-        help="GCS bucket name (default: GCS_BUCKET_NAME or dsai-m2-bucket).",
-    )
-    parser.add_argument(
-        "--gcs-blob-path",
-        default=os.getenv("SP500_GCS_BLOB_PATH", DEFAULT_GCS_BLOB_PATH),
-        help=f"GCS blob path (default: {DEFAULT_GCS_BLOB_PATH}).",
     )
     parser.add_argument(
         "--output-jsonl",
@@ -167,26 +118,6 @@ def main() -> None:
     # Write JSONL for Meltano tap-jsonl
     jsonl_count = write_jsonl(records, out_jsonl)
     print(f"Wrote {jsonl_count} JSONL records to {out_jsonl}")
-
-    # Upload raw CSV to GCS (store exactly what we downloaded)
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as tmp:
-        tmp_path = Path(tmp.name)
-        tmp.write(csv_text)
-
-    try:
-        print(f"Uploading raw CSV to gs://{args.bucket}/{args.gcs_blob_path}")
-        upload_to_gcs(
-            bucket_name=args.bucket,
-            blob_path=args.gcs_blob_path,
-            local_path=tmp_path,
-        )
-        print("GCS upload complete.")
-    finally:
-        try:
-            tmp_path.unlink()
-        except OSError:
-            # Not critical; just avoid failing the pipeline on cleanup.
-            pass
 
 
 if __name__ == "__main__":

@@ -22,6 +22,7 @@ import json
 import sys
 from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from pathlib import Path
 
 import requests
@@ -31,6 +32,10 @@ SP500_CONSTITUENTS_URL = (
 )
 DEFAULT_USER_AGENT = "ntu-dsai-m2-capstone/1.0 (yfinance sp500 pipeline)"
 SMA_LEN = 200
+# Calendar lookback for yfinance `start` (inclusive). 200 *daily trading* bars need ~290 calendar days
+# (~252 trading days/year); smaller lookbacks leave SMA200 as null for every output row, and tap-jsonl
+# then infers SMA200 as type ["null"] → BigQuery merge failures against FLOAT64.
+TA_LOOKBACK_CALENDAR_DAYS = 420
 BACKCANDLES_PREV = 3
 HIST_THRESH = 4e-6
 HIST_WINDOW = 3
@@ -94,6 +99,36 @@ def _safe_json_number(value) -> float | int | None:
         return value.item()
     except Exception:
         return float(value)
+
+
+def _json_float(value) -> float | None:
+    """BigQuery FLOAT64 merge requires JSON numbers, not strings — coerce object/str/NA."""
+    import pandas as pd
+
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        return None
+    if isinstance(value, str):
+        s = value.strip()
+        if not s or s.lower() in ("nan", "none", "null", "nat"):
+            return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+    n = _safe_json_number(value)
+    if n is None:
+        return None
+    out = float(n)
+    import math
+
+    if math.isnan(out) or math.isinf(out):
+        return None
+    return out
 
 
 def _safe_json_int(value) -> int | None:
@@ -252,6 +287,17 @@ def main() -> None:
     chunk_size = max(1, int(args.chunk_size))
     start = args.start
     end = args.end
+    out_start = date.fromisoformat(start)
+    out_end = date.fromisoformat(end)
+    # Download extra history so SMA200 / MACD are numeric on rows inside [start, end]. A short
+    # window with only nulls makes tap-jsonl infer SMA200 as type ["null"] → BigQuery STRING,
+    # which then fails merge into an existing FLOAT64 column.
+    fetch_start = out_start - timedelta(days=TA_LOOKBACK_CALENDAR_DAYS)
+    fetch_start_str = fetch_start.isoformat()
+    print(
+        f"Yahoo download range: {fetch_start_str} .. {end} (JSONL rows only {start} .. {end})",
+        flush=True,
+    )
 
     # Stream write JSONL to avoid holding the whole dataset in memory.
     total_rows = 0
@@ -270,7 +316,7 @@ def main() -> None:
             )
             df = yf.download(
                 chunk_yf,
-                start=start,
+                start=fetch_start_str,
                 end=end,
                 interval="1d",
                 auto_adjust=True,
@@ -336,6 +382,10 @@ def main() -> None:
                     macdh_col="MACDh_12_26_9",
                 )
 
+                ts = pd.to_datetime(sub["date"])
+                in_window = (ts.dt.date >= out_start) & (ts.dt.date <= out_end)
+                sub = sub.loc[in_window]
+
                 for _idx, row in sub.iterrows():
                     d = row["date"]
                     if pd.isna(d):
@@ -348,22 +398,25 @@ def main() -> None:
                         "symbol": raw_symbol,
                         "date": iso_date,
                         "year": year,
-                        "open": _safe_json_number(row.get("open")),
-                        "high": _safe_json_number(row.get("high")),
-                        "low": _safe_json_number(row.get("low")),
-                        "close": _safe_json_number(row.get("close")),
+                        "open": _json_float(row.get("open")),
+                        "high": _json_float(row.get("high")),
+                        "low": _json_float(row.get("low")),
+                        "close": _json_float(row.get("close")),
                         # target-bigquery expects integer volume
                         "volume": _safe_json_int(row.get("volume")),
-                        "SMA200": _safe_json_number(row.get("SMA200")),
+                        "SMA200": _json_float(row.get("SMA200")),
                         "pre_signal": _safe_json_int(row.get("pre_signal")),
-                        "MACD_12_26_9": _safe_json_number(row.get("MACD_12_26_9")),
-                        "MACDs_12_26_9": _safe_json_number(row.get("MACDs_12_26_9")),
-                        "MACDh_12_26_9": _safe_json_number(row.get("MACDh_12_26_9")),
+                        "MACD_12_26_9": _json_float(row.get("MACD_12_26_9")),
+                        "MACDs_12_26_9": _json_float(row.get("MACDs_12_26_9")),
+                        "MACDh_12_26_9": _json_float(row.get("MACDh_12_26_9")),
                     }
                     # Avoid writing completely empty rows.
                     if record["close"] is None and record["open"] is None:
                         continue
-                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+                    # Reject NaN/Inf so tap-jsonl + BQ never see ambiguous non-JSON literals.
+                    f.write(
+                        json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n"
+                    )
                     total_rows += 1
             chunks_done += 1
             elapsed_sec = int((datetime.utcnow() - started_at).total_seconds())
