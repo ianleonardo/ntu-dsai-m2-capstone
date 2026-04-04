@@ -1,6 +1,7 @@
 -- Fact model for insider transactions (materialized as a view).
 -- Non-derivative transactions only (no derivative SEC tables).
--- ACCESSION_NUMBER is the grain; totals equal non-derivative transaction aggregates.
+-- ACCESSION_NUMBER is the grain. Share/value aggregates sum A/D across all non-derivative lines;
+-- non_deriv_transaction_count / total_transaction_count count only P/S (Purchase/Sale) lines.
 
 WITH submission AS (
     SELECT * FROM {{ ref('dim_sec_submission') }}
@@ -9,7 +10,7 @@ WITH submission AS (
 non_deriv_trans_agg AS (
     SELECT
         ACCESSION_NUMBER,
-        COUNT(*) AS non_deriv_transaction_count,
+        COUNTIF(UPPER(TRIM(CAST(TRANSACTION_CODING_CODE AS STRING))) IN ('P', 'S')) AS non_deriv_transaction_count,
         SUM(
             CASE
                 WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A'

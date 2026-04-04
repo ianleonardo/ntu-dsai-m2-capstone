@@ -88,8 +88,14 @@ models:
         description: >-
           Minimum non-null TRANSACTION_DATE on non-derivative transaction lines for the filing;
           NULL if none
+      - name: non_deriv_transaction_count
+        description: >-
+          Count of non-derivative lines with SEC transaction code P (Purchase) or S (Sale) only;
+          same as total_transaction_count
       - name: total_transaction_count
-        description: "Count of non-derivative transaction lines (same as non_deriv_transaction_count)"
+        description: >-
+          Count of non-derivative lines with SEC transaction code P (Purchase) or S (Sale) only;
+          same as non_deriv_transaction_count
       - name: total_shares_acquired
         description: "Non-derivative shares acquired (same as non_deriv_shares_acquired)"
       - name: total_shares_disposed
