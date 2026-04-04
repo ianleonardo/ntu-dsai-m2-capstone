@@ -14,6 +14,8 @@ This project is a comprehensive Stock Analytics Data Pipeline designed to ingest
 - **Operational Efficiency:** Streamlines workflows by automatically filtering non-discretionary "noise" (e.g., option exercises) from over 40,000 annual filings.
 - **Strategic Alignment:** Empowers top-down thematic allocation backed by bottom-up insider conviction and auditable, data-driven decision governance.
 
+[Download Insider Alpha Business Value Proposition (PDF)](docs/InsiderAlpha.pdf)
+
 ![Insider Alpha UI](images/insider-ms.png)
 
 ### Architecture Overview
@@ -79,11 +81,11 @@ The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
 
 #### Primary Data Sources
 
-1. **SEC Form 4 Insider Trading Data**
-  - **Source**: SEC EDGAR database (quarterly TSV datasets)
-  - **Content**: Insider submissions, non-derivative transactions, reporting owners
-  - **Update Frequency**: Quarterly (with manual refresh capability)
-  - **Ingestion Method**: Automated download via `scripts/download_sec.py`
+1. **SEC Form 3 & 4 Insider Trading Data**
+  - **Source**: SEC EDGAR database (quarterly TSV datasets & daily XML indexes)
+  - **Content**: Form 3 (Initial Statement of Ownership) and Form 4 (Statement of Changes in Beneficial Ownership)
+  - **Update Frequency**: Mixed (Quarterly bulk + Daily incremental)
+  - **Ingestion Method**: Automated download via `scripts/download_sec.py` and daily sync via `scripts/download_sec_form4_daily.py` (updated for Form 3/4)
   - **Data Volume**: ~1M+ records per year across all public companies
 2. **S&P 500 Market Data**
   - **Source**: DataHub S&P 500 constituents ([https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv](https://datahub.io/core/s-and-p-500-companies/_r/-/data/constituents.csv))

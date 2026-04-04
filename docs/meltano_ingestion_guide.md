@@ -129,10 +129,10 @@ Use Dagster asset **`sec_direct_ingestion`** (see [Orchestration Guide](orchestr
 #### Form 4 monthly files for current year (no BigQuery upload)
 
 When SEC quarterly bulk ZIPs are not yet published (for example, early in a new year), use:
-`scripts/download_sec_form4_daily.py`.
+`scripts/download_sec_form4_daily.py` (which now supports **Form 3** initial filings and **Form 4** daily updates).
 
 This utility:
-- Downloads exact **Form `4`** filings from EDGAR daily indexes (not `4/A`)
+- Downloads exact **Form `3` and `4`** filings from EDGAR daily indexes (not `4/A`)
 - Parses ownership XML and extracts only `SUBMISSION`, `REPORTINGOWNER`, `NONDERIV_TRANS`
 - Writes monthly TSV files and local run state/failure logs
 - Can optionally upload generated monthly TSVs to BigQuery tables (`sec_submission`, `sec_reportingowner`, `sec_nonderiv_trans`)
@@ -140,6 +140,7 @@ This utility:
 ```bash
 cd /path/to/repo
 uv run --project . python scripts/download_sec_form4_daily.py \
+  --forms 3,4 \
   --start-date 2026-01-01 \
   --end-date "$(date +%F)" \
   --user-agent "Your Name your_email@example.com" \
