@@ -21,6 +21,8 @@ dependencies = [
     "starlette>=0.37,<0.38",
     "uvicorn>=0.30,<0.31",
     "dbt-bigquery>=1.10.2,<1.12",
+    # Required for Dagster assets that shell out to Meltano (sp500_stock_daily, sp500_companies).
+    "meltano>=3.0,<5",
 ]
 
 [project.optional-dependencies]
@@ -47,6 +49,11 @@ dbt = [
 ]
 dbt-core = [
     "dbt-bigquery>=1.10.2",
+]
+# Dagster OSS on GCP: Postgres instance storage + optional GCS compute logs (Docker / GKE / Cloud Run).
+gcp = [
+    "dagster-postgres>=0.28.0,<0.30",
+    "dagster-gcp>=0.28.0,<0.30",
 ]
 
 [dependency-groups]

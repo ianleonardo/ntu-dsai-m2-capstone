@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-daemon
+  namespace: dagster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-daemon
+  template:
+    metadata:
+      labels:
+        app: dagster-daemon
+    spec:
+      serviceAccountName: dagster-workloads
+      containers:
+        - name: daemon
+          image: REGION-docker.pkg.dev/PROJECT_ID/REPO/capstone-dagster:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/deployment/gcp/docker-entrypoint.sh"]
+          args:
+            - dagster-daemon
+            - run
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            - name: PYTHONPATH
+              value: /app
+          envFrom:
+            - secretRef:
+                name: dagster-postgres
+                optional: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"

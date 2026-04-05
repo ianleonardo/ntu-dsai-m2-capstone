@@ -1,0 +1,29 @@
+# Example: single Cloud Run service running the gRPC code server only.
+# The Dagster UI (webserver) is usually a second service with the same image and
+#   dagster-webserver -h 0.0.0.0 -p 3000 -w /app/deployment/gcp/workspace.yaml
+# Point workspace.yaml grpc host to the code service URL (or use Serverless VPC + internal DNS).
+#
+# Replace IMAGE_URI, PROJECT, REGION, and add secrets for Postgres env vars.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: dagster-user-code
+spec:
+  template:
+    spec:
+      serviceAccountName: YOUR_CLOUD_RUN_SA
+      containers:
+        - image: IMAGE_URI
+          ports:
+            - containerPort: 4000
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            - name: PYTHONPATH
+              value: /app
+            - name: SEC_FORM4_OUTPUT_DIR
+              value: /tmp/sec_form4_staging
+          envFrom:
+            - secretRef:
+                name: dagster-postgres
+                optional: true

@@ -1,0 +1,27 @@
+# Cloud Build: build image and push to Artifact Registry.
+# Submit: gcloud builds submit --config=cloudbuild.yaml --substitutions=_REGION=asia-southeast1 .
+#
+# Prereq: create repository, e.g.
+#   gcloud artifacts repositories create dagster --repository-format=docker --location=asia-southeast1
+
+substitutions:
+  _REGION: asia-southeast1
+  _REPO: dagster
+  _IMAGE: capstone-dagster
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - .
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY

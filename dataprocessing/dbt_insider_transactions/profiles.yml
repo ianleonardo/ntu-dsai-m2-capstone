@@ -4,8 +4,8 @@ dbt_insider_transactions:
     dev:
       type: bigquery
       method: oauth
-      project: ntu-dsai-488112
-      dataset: insider_transactions
+      project: "{{ env_var('GOOGLE_PROJECT_ID', 'ntu-dsai-488112') }}"
+      dataset: "{{ env_var('BIGQUERY_DATASET', 'insider_transactions') }}"
       threads: 1
       timeout_seconds: 300
       location: asia-southeast1

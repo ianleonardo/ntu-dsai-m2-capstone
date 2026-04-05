@@ -73,7 +73,10 @@ models:
         description: "GICS sector from dim_sp500_company at build time"
 
   - name: fct_insider_transactions
-    description: "Fact (view) at filing grain; non-derivative transactions only (no NONDERIV_HOLDING table)"
+    description: >-
+      Fact (view) at filing grain; non-derivative lines only. Share/volume/dollar totals and
+      transaction counts use SEC transaction codes P and S (Purchase/Sale) only; post-trade
+      shares owned uses MAX across all line types.
     columns:
       - name: ACCESSION_NUMBER
         description: "Primary key - SEC accession number"
@@ -96,12 +99,28 @@ models:
         description: >-
           Count of non-derivative lines with SEC transaction code P (Purchase) or S (Sale) only;
           same as non_deriv_transaction_count
+      - name: non_deriv_shares_acquired
+        description: >-
+          Shares acquired on lines with SEC transaction code P or S only (open-market purchase/sale)
+      - name: non_deriv_shares_disposed
+        description: >-
+          Shares disposed on lines with SEC transaction code P or S only
       - name: total_shares_acquired
-        description: "Non-derivative shares acquired (same as non_deriv_shares_acquired)"
+        description: "Same as non_deriv_shares_acquired (P/S lines only)"
       - name: total_shares_disposed
-        description: "Non-derivative shares disposed (same as non_deriv_shares_disposed)"
+        description: "Same as non_deriv_shares_disposed (P/S lines only)"
       - name: total_non_deriv_value
-        description: "Total value of non-derivative transactions"
+        description: >-
+          Sum of reported value fields on P/S non-derivative lines only (acquired + disposed components)
+      - name: est_acquire_value
+        description: >-
+          Sum of shares×price on P/S lines where acquired/disposed code is A (acquisitions)
+      - name: est_dispose_value
+        description: >-
+          Sum of shares×price on P/S lines where acquired/disposed code is D (dispositions)
+      - name: total_non_deriv_shares_owned
+        description: >-
+          MAX post-transaction shares held on any non-derivative line (not limited to P/S)
       - name: reporting_owner_count
         description: "Count of distinct reporting owners (by RPTOWNERCIK on dim_sec_reporting_owner)"
       - name: reporting_owner_names

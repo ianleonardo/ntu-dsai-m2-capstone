@@ -1,47 +1,55 @@
 -- Fact model for insider transactions (materialized as a view).
 -- Non-derivative transactions only (no derivative SEC tables).
--- ACCESSION_NUMBER is the grain. Share/value aggregates sum A/D across all non-derivative lines;
--- non_deriv_transaction_count / total_transaction_count count only P/S (Purchase/Sale) lines.
+-- ACCESSION_NUMBER is the grain. Dollar/share aggregates (and implied price) include only
+-- P/S (Purchase/Sale) non-derivative lines; counts likewise. MAX(post-transaction shares) may
+-- still reflect any line type on the filing.
 
 WITH submission AS (
     SELECT * FROM {{ ref('dim_sec_submission') }}
 ),
 
+non_deriv_line AS (
+    SELECT
+        *,
+        UPPER(TRIM(CAST(TRANSACTION_CODING_CODE AS STRING))) IN ('P', 'S') AS is_purchase_or_sale
+    FROM {{ ref('fct_sec_nonderiv_line') }}
+),
+
 non_deriv_trans_agg AS (
     SELECT
         ACCESSION_NUMBER,
-        COUNTIF(UPPER(TRIM(CAST(TRANSACTION_CODING_CODE AS STRING))) IN ('P', 'S')) AS non_deriv_transaction_count,
+        COUNTIF(is_purchase_or_sale) AS non_deriv_transaction_count,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A'
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A'
                 THEN SAFE_CAST(TRANSACTION_SHARES AS FLOAT64)
                 ELSE 0
             END
         ) AS non_deriv_shares_acquired,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D'
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D'
                 THEN SAFE_CAST(TRANSACTION_SHARES AS FLOAT64)
                 ELSE 0
             END
         ) AS non_deriv_shares_disposed,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A'
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A'
                 THEN SAFE_CAST(VALUE_OWNED_FOLLOWING_TRANSACTION AS FLOAT64)
                 ELSE 0
             END
         ) AS non_deriv_value_acquired,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D'
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D'
                 THEN SAFE_CAST(VALUE_OWNED_FOLLOWING_TRANSACTION AS FLOAT64)
                 ELSE 0
             END
         ) AS non_deriv_value_disposed,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A' THEN COALESCE(
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'A' THEN COALESCE(
                     SAFE_MULTIPLY(
                         SAFE_CAST(TRANSACTION_SHARES AS FLOAT64),
                         SAFE_CAST(TRANSACTION_PRICE_PER_SHARE AS FLOAT64)
@@ -53,7 +61,7 @@ non_deriv_trans_agg AS (
         ) AS est_acquire_value,
         SUM(
             CASE
-                WHEN TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D' THEN COALESCE(
+                WHEN is_purchase_or_sale AND TRANSACTION_ACQUIRED_DISPOSED_CODE = 'D' THEN COALESCE(
                     SAFE_MULTIPLY(
                         SAFE_CAST(TRANSACTION_SHARES AS FLOAT64),
                         SAFE_CAST(TRANSACTION_PRICE_PER_SHARE AS FLOAT64)
@@ -65,7 +73,7 @@ non_deriv_trans_agg AS (
         ) AS est_dispose_value,
         -- Post-transaction shares on each line (SHRS_OWND_FOLWNG_TRANS); MAX ≈ largest reported balance in filing.
         MAX(SAFE_CAST(SHARES_OWNED_FOLLOWING_TRANSACTION AS FLOAT64)) AS total_non_deriv_shares_owned
-    FROM {{ ref('fct_sec_nonderiv_line') }}
+    FROM non_deriv_line
     GROUP BY ACCESSION_NUMBER
 ),
 

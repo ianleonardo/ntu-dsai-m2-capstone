@@ -32,6 +32,12 @@ class SecForm4DailyConfig(Config):
     bq_dataset: str = ""
 
 
+def _resolved_output_dir(config: SecForm4DailyConfig) -> str:
+    """K8s: set SEC_FORM4_OUTPUT_DIR to a PVC mount; overrides default when non-empty."""
+    env = os.environ.get("SEC_FORM4_OUTPUT_DIR", "").strip()
+    return env if env else config.output_dir
+
+
 @asset(
     key="sec_form4_daily_ingestion",
     description="Download Form 4 filings (via daily indexes) by date range and load monthly files to BigQuery.",
@@ -44,6 +50,9 @@ def sec_form4_daily_ingestion(
     if not script.is_file():
         raise FileNotFoundError(f"Missing script: {script}")
 
+    out_dir = _resolved_output_dir(config)
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
+
     cmd = [
         sys.executable,
         str(script),
@@ -54,7 +63,7 @@ def sec_form4_daily_ingestion(
         "--user-agent",
         config.user_agent,
         "--output-dir",
-        config.output_dir,
+        out_dir,
         "--max-requests-per-second",
         str(config.max_requests_per_second),
         "--sleep-seconds",
@@ -88,7 +97,7 @@ def sec_form4_daily_ingestion(
     if proc.returncode != 0:
         raise RuntimeError(f"sec_form4_daily_ingestion failed: {proc.stderr or proc.stdout}")
 
-    summary_path = Path(config.output_dir) / "run_summary.json"
+    summary_path = Path(out_dir) / "run_summary.json"
     summary_obj = {}
     if summary_path.exists():
         try:
@@ -100,7 +109,7 @@ def sec_form4_daily_ingestion(
         metadata={
             "from_date": config.from_date,
             "to_date": config.to_date,
-            "output_dir": config.output_dir,
+            "output_dir": out_dir,
             "upload_bigquery": config.upload_bigquery,
             "summary": MetadataValue.json(summary_obj) if summary_obj else "{}",
             "stdout_tail": MetadataValue.md(f"```\n{proc.stdout[-2000:]}\n```"),

@@ -1,0 +1,55 @@
+# Build and push Dagster image to Google Artifact Registry (optional; requires secrets).
+name: Dagster Docker image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - deployment/gcp/**
+      - pyproject.toml
+      - uv.lock
+      - dataprocessing/**
+
+env:
+  REGION: asia-southeast1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: docker build -t dagster-capstone:ci .
+
+      - name: Push image
+        if: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' }}
+        run: |
+          PROJECT="${{ vars.GCP_PROJECT_ID }}"
+          REPO="${{ vars.GCP_ARTIFACT_REPO }}"
+          test -n "$PROJECT" && test -n "$REPO"
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          docker tag dagster-capstone:ci ${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/capstone-dagster:${SHORT_SHA}
+          docker tag dagster-capstone:ci ${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/capstone-dagster:latest
+          docker push ${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/capstone-dagster:${SHORT_SHA}
+          docker push ${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/capstone-dagster:latest
