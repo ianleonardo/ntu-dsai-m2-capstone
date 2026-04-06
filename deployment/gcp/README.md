@@ -53,6 +53,49 @@ gcloud builds submit --config=cloudbuild.yaml --substitutions=_REGION=asia-south
 docker build -t capstone-dagster:local .
 ```
 
+## Docker Compose (Single VM)
+
+For a simpler deployment without Kubernetes, you can run the exact same OSS topology on a single Google Compute Engine (GCE) VM using Docker Compose.
+
+Unlike Kubernetes (which expects an external Cloud SQL instance), this **Docker Compose stack includes its own Postgres database container** specifically for Dagster's metadata. 
+
+### Step-by-Step Deployment Guide
+
+1. **Deploy a GCE Instance**:
+   - Provision a VM via the GCP Console (e.g., `e2-standard-2`).
+   - Choose a Linux image (e.g., Debian or Ubuntu) and ensure you allow HTTP traffic (to expose Dagster UI port `3000`).
+   - SSH into the VM and install Docker and Git:
+     ```bash
+     sudo apt-get update && sudo apt-get install -y docker.io docker-compose git
+     ```
+
+2. **Clone and Configure**:
+   - Clone your repository onto the VM.
+   - Navigate to the deployment folder: `cd ntu-dsai-m2-capstone/deployment/gcp`
+   - Copy the `.env.docker.example` file to create your local environment:
+     ```bash
+     cp .env.docker.example .env
+     ```
+   
+3. **Database and GCP Credentials (`.env`)**:
+   - Open your `.env` file (`nano .env`).
+   - Modify the `DAGSTER_POSTGRES_PASSWORD` to a secure password. *(Note: Because Docker Compose launches both the Postgres DB and Dagster, setting this variable in `.env` automatically configures the database and tells Dagster how to connect to it!)*
+   - Place your Google Service Account JSON key somewhere on the VM (e.g., `/home/user/sa-key.json`).
+   - Update `GOOGLE_APPLICATION_CREDENTIALS=/home/user/sa-key.json` inside the `.env` file.
+
+4. **Launch the Stack**:
+   - From inside the `deployment/gcp` folder, pull the latest image and start the cluster:
+     ```bash
+     sudo docker-compose pull
+     sudo docker-compose up -d
+     ```
+   - *Note: `docker-compose up -d` runs the daemon in the background. You can check logs using `sudo docker-compose logs -f`.*
+
+5. **Access the UI**:
+   - Go to `http://<YOUR_VM_EXTERNAL_IP>:3000`. You may need to create a VPC Firewall Rule in GCP to explicitly allow TCP port `3000`.
+
+*Persistence:* This topology uses Docker volumes for the Postgres database and the `SEC_FORM4_OUTPUT_DIR` to ensure downloads and run history survive container restarts without needing external GCS blob storage.
+
 ## Kubernetes (GKE)
 
 Example manifests live under [`k8s/`](k8s/):

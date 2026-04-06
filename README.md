@@ -8,11 +8,17 @@ This project is a comprehensive Stock Analytics Data Pipeline designed to ingest
 
 ### Business Value Proposition: Insider Alpha
 
-**Insider Alpha** offers a distinct competitive advantage for Portfolio Managers & Institutional Investors:
+**Executive Summary**
 
-- **Quantifiable Alpha Generation:** Transforms complex SEC Form 4 filings into high-conviction investment signals, capturing alpha in the critical 1-6 month post-filing window.
-- **Operational Efficiency:** Streamlines workflows by automatically filtering non-discretionary "noise" (e.g., option exercises) from over 40,000 annual filings.
-- **Strategic Alignment:** Empowers top-down thematic allocation backed by bottom-up insider conviction and auditable, data-driven decision governance.
+**Insider Alpha** is a specialized analytics dashboard that turns complex SEC Form 3 and Form 4 filings into actionable investment signals. It gives Portfolio Managers a systematic, data-driven edge by highlighting high-conviction trades from corporate insiders who have asymmetric access to information about their firms.
+
+**The Problem**
+
+While SEC filings are public, their sheer volume makes it virtually impossible for investors to manually track and identify high-conviction trades, meaning they often miss out on legal insider activity that predicts price movements.
+
+**The Solution**
+
+Insider Alpha consolidates SEC filings for S&P 500 constituents and filters out administrative "noise". It identifies key signals by prioritizing executive trades (CEOs, CFOs), detecting significant clustered purchases, and highlighting alpha opportunities in the critical 1-6 month post-filing window.
 
 [Download Insider Alpha Business Value Proposition (PDF)](docs/InsiderAlpha.pdf)
 
@@ -24,33 +30,26 @@ This project is a comprehensive Stock Analytics Data Pipeline designed to ingest
 
 The pipeline follows a modern ELT (Extract, Load, Transform) architecture orchestrated by Dagster:
 
-```
-              ┌───────────────────────────────────────────────┐
-              │           Orchestration (Dagster)             │
-              └───────────────────────────────────────────────┘
-                                     │
-           ┌─────────────────────────┴────────────────────────┐
-           ▼                         ▼                        ▼
-┌─────────────────┐        ┌─────────────────┐       ┌─────────────────┐
-│   Data Sources  │───────▶│   Ingestion     │──────▶│  Transformation │
-│ • SEC Forms     │        │   (Meltano,     │       │     (dbt)       │
-│ • Market Data   │        │    Python)      │       │                 │
-│ • Company Info  │        │                 │       │                 │
-└─────────────────┘        └─────────────────┘       └─────────────────┘
-                                     │                        │
-                                     └──────────┬─────────────┘
-                                                ▼
-                                     ┌─────────────────┐
-                                     │ Data Warehouse  │
-                                     │   (BigQuery)    │
-                                     └─────────────────┘
-                                                │
-                                                ▼
-                                     ┌─────────────────┐
-                                     │ Dashboard UI    │
-                                     │ • FastAPI       │
-                                     │ • Next.js       │
-                                     └─────────────────┘
+```mermaid
+graph TD
+    classDef orchestrator fill:#f9f,stroke:#333,stroke-width:2px;
+    O[Orchestration<br>Dagster]:::orchestrator
+    
+    DS[Data Sources<br>• SEC Forms<br>• Market Data<br>• Company Info]
+    ING[Ingestion<br>Meltano, Python]
+    TRANS[Transformation<br>dbt]
+    DW[Data Warehouse<br>BigQuery]
+    UI[Dashboard UI<br>• FastAPI<br>• Next.js]
+    
+    O --> DS
+    O --> ING
+    O --> TRANS
+    
+    DS --> ING
+    ING --> TRANS
+    ING --> DW
+    TRANS --> DW
+    DW --> UI
 ```
 
 **Note**: The diagram shows the data flow architecture. Dagster orchestrates ingestion, transformation, and scheduling. dbt performs transformations within BigQuery (no UI), while the Dashboard UI provides the user-facing visualization layer.
@@ -102,36 +101,28 @@ The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
 
 #### Data Ingestion Architecture
 
-```
-                  Raw Data Sources
-                         │
-      ┌──────────────────┼──────────────────┐
-      ▼                  ▼                  ▼
-┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  SEC Files  │    │ S&P 500 List│    │Yahoo Finance│
-│ (TSV/JSON)  │    │  (DataHub)  │    │    (API)    │
-└─────────────┘    └─────────────┘    └─────────────┘
-      │                  │                  │
-      └─────────┬────────┴────────┬─────────┘
-                ▼                 ▼
-         ┌─────────────┐   ┌─────────────┐
-         │Staging Area │   │Data Process.│
-         │  (/data)    │   │  Scripts    │
-         └─────────────┘   └─────────────┘
-                │                 │
-                └────────┬────────┘
-                         ▼
-                  ┌─────────────┐
-                  │   Meltano   │
-                  │ Extractor & │
-                  │   Loaders   │
-                  └─────────────┘
-                         │
-                         ▼
-                  ┌─────────────┐
-                  │  BigQuery   │
-                  │   Staging   │
-                  └─────────────┘
+```mermaid
+graph TD
+    subgraph Raw Data Sources
+        SEC[SEC Files<br>TSV/JSON]
+        SP[S&P 500 List<br>DataHub]
+        YF[Yahoo Finance<br>API]
+    end
+
+    SA[Staging Area<br>/data]
+    DPS[Data Process. Scripts]
+
+    MEL[Meltano<br>Extractor & Loaders]
+    BQ[(BigQuery<br>Staging)]
+
+    SEC --> SA
+    SP --> SA
+    SP --> DPS
+    YF --> DPS
+
+    SA --> MEL
+    DPS --> MEL
+    MEL --> BQ
 ```
 
 ### Data Warehouse Design
@@ -140,61 +131,65 @@ The pipeline implements a sophisticated ELT workflow orchestrated by Dagster:
 
 The data warehouse follows a star schema pattern with optimized clustering:
 
-```
-  [SEC / EDGAR Files]        [SEC / EDGAR Files]         [DataHub S&P 500]
-          │                          │                          │
-          ▼                          ▼                          ▼
-   (sec_submission)       (sec_reportingowner)        (sp500_companies)
-          │                          │                          │
-          ▼                          ▼                          ▼
-       ┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
-       │ dim_sec_        │        │ dim_sec_        │        │ dim_sp500_      │
-       │ submission      │        │ reporting_owner │        │ company         │
-       │                 │        │                 │        │                 │
-       │ • ACCESSION_NO  │        │ • RPTOWNERCIK   │        │ • symbol_norm   │
-       └─────────────────┘        └─────────────────┘        └─────────────────┘
-                │                          │                          │
-                └──────────────┬───────────┘                          │
-                               │                                      │
-                      [SEC / EDGAR Files]                             │
-                               │                                      │
-                               ▼                                      │
-                      (sec_nonderiv_trans)                            │
-                               │                                      │
-                               ▼                                      │
-                    ┌───────────────────┐                             │
-                    │ fct_sec_          │                             │
-                    │ nonderiv_line     │                             │
-                    └───────────────────┘                             │
-                               │                                      │
-                               ▼                                      │
-                    ┌───────────────────┐                             │
-                    │ fct_insider_      │                             │
-                    │ transactions      │                             │
-                    └───────────────────┘                             │
-                               │                                      │
-                               └───────────────────┬──────────────────┘
-                                                   │
-                                                   ▼
-┌──────────────────────┐                ┌──────────────────────┐     [Yahoo Finance API]
-│ dim_sp500_           │                │ sp500_insider_       │               │
-│ reporting_owner      │                │ transactions         │               ▼
-│                      │                │                      │      (sp500_stock_daily)
-│ (Filtered Dimension) │                │ (Materialized View)  │               │
-└──────────────────────┘                └──────────────────────┘               ▼
-           │                                       │                  ┌──────────────────────┐
-           │                                       │                  │ sp500_stock_         │
-           │                                       │                  │ daily                │
-           │                                       │                  │                      │
-           │                                       │                  │ (Fact / Mat. View)   │
-           │                                       │                  └──────────────────────┘
-           │                                       │                             │
-           └───────────────────┬───────────────────┴───────────────────┬─────────┘
-                               │                                       │
-                               ▼                                       ▼
-                    ┌───────────────────┐                   ┌───────────────────┐
-                    │ Dashboard API     │◀──────────────────│ Dashboard UI      │
-                    └───────────────────┘                   └───────────────────┘
+```mermaid
+graph TD
+    classDef source fill:#e1f5fe,stroke:#01579b,stroke-width:1px;
+    classDef stage fill:#fff3e0,stroke:#e65100,stroke-width:1px;
+    classDef dim fill:#e8f5e9,stroke:#1b5e20,stroke-width:1px;
+    classDef fct fill:#fce4ec,stroke:#880e4f,stroke-width:1px;
+    classDef mat fill:#f3e5f5,stroke:#4a148c,stroke-width:1px,stroke-dasharray: 5 5;
+    classDef app fill:#eceff1,stroke:#263238,stroke-width:1px;
+
+    SEC1([SEC / EDGAR Files]):::source
+    SEC2([SEC / EDGAR Files]):::source
+    DH([DataHub S&P 500]):::source
+    SEC3([SEC / EDGAR Files]):::source
+    YF([Yahoo Finance API]):::source
+
+    S_SUB[(sec_submission)]:::stage
+    S_RO[(sec_reportingowner)]:::stage
+    S_SP[(sp500_companies)]:::stage
+    S_NDT[(sec_nonderiv_trans)]:::stage
+    S_SD[(sp500_stock_daily)]:::stage
+
+    D_SUB[dim_sec_submission<br>• ACCESSION_NO]:::dim
+    D_RO[dim_sec_reporting_owner<br>• RPTOWNERCIK]:::dim
+    D_SP[dim_sp500_company<br>• symbol_norm]:::dim
+    D_SPRO[dim_sp500_reporting_owner<br>Filtered Dimension]:::dim
+
+    F_NDL[fct_sec_nonderiv_line]:::fct
+    F_IT[fct_insider_transactions]:::fct
+
+    M_SIT[[sp500_insider_transactions<br>Materialized View]]:::mat
+    M_SSD[[sp500_stock_daily<br>Fact / Mat. View]]:::mat
+
+    API{{Dashboard API}}:::app
+    UI{{Dashboard UI}}:::app
+
+    SEC1 --> S_SUB
+    SEC2 --> S_RO
+    DH --> S_SP
+    SEC3 --> S_NDT
+    YF --> S_SD
+
+    S_SUB --> D_SUB
+    S_RO --> D_RO
+    S_SP --> D_SP
+
+    D_SUB --> F_NDL
+    D_RO --> F_NDL
+    S_NDT --> F_NDL
+
+    F_NDL --> F_IT
+    
+    F_IT --> M_SIT
+    D_SP --> M_SIT
+
+    M_SIT --> API
+    D_SPRO --> API
+    M_SSD --> API
+    M_SSD --> UI
+    UI <--> API
 ```
 
 #### Table Design Principles
