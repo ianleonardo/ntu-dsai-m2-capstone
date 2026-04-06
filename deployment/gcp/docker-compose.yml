@@ -1,0 +1,94 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: dagster-postgres
+    environment:
+      POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster_password_secure}
+      POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+    networks:
+      - dagster-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DAGSTER_POSTGRES_USER:-dagster}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dagster-user-code:
+    # Use the locally built image or the one pushed to GCP Artifact Registry
+    image: capstone-dagster:latest
+    container_name: dagster-user-code
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:-postgres}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster_password_secure}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+      DAGSTER_POSTGRES_PORT: 5432
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID}
+      BIGQUERY_DATASET: ${BIGQUERY_DATASET}
+      GOOGLE_APPLICATION_CREDENTIALS: "/app/gcp-credentials.json"
+      SEC_FORM4_OUTPUT_DIR: "/mnt/form4_staging"
+    networks:
+      - dagster-network
+    command: ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "4000", "-m", "dataprocessing.dagster_orchestration.repository", "-a", "definitions"]
+    volumes:
+      # Bind mount the Google Cloud Service Account key
+      - ${GOOGLE_APPLICATION_CREDENTIALS}:/app/gcp-credentials.json:ro
+      # Persist Form 4 downloads locally
+      - form4-staging:/mnt/form4_staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dagster-webserver:
+    image: capstone-dagster:latest
+    container_name: dagster-webserver
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:-postgres}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster_password_secure}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+      DAGSTER_POSTGRES_PORT: 5432
+    networks:
+      - dagster-network
+    ports:
+      - "3000:3000"
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/app/deployment/gcp/workspace.yaml"]
+    depends_on:
+      dagster-user-code:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  dagster-daemon:
+    image: capstone-dagster:latest
+    container_name: dagster-daemon
+    restart: always
+    environment:
+      DAGSTER_POSTGRES_HOST: ${DAGSTER_POSTGRES_HOST:-postgres}
+      DAGSTER_POSTGRES_USER: ${DAGSTER_POSTGRES_USER:-dagster}
+      DAGSTER_POSTGRES_PASSWORD: ${DAGSTER_POSTGRES_PASSWORD:-dagster_password_secure}
+      DAGSTER_POSTGRES_DB: ${DAGSTER_POSTGRES_DB:-dagster}
+      DAGSTER_POSTGRES_PORT: 5432
+    networks:
+      - dagster-network
+    command: ["dagster-daemon", "run"]
+    depends_on:
+      dagster-user-code:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+networks:
+  dagster-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  form4-staging:
