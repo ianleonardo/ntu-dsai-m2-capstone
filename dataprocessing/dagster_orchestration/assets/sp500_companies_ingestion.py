@@ -9,11 +9,12 @@ import os
 import re
 import subprocess
 import sys
-import shutil
 from pathlib import Path
 
 from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataValue, asset
 from dotenv import dotenv_values
+
+from ..utils.meltano_cli import resolve_meltano_executable
 
 # repo root is 3 levels up from this file (parents[3])
 project_root = Path(__file__).resolve().parents[3]
@@ -46,9 +47,7 @@ def sp500_companies_ingestion(
     if "GOOGLE_CLOUD_PROJECT" not in env or not env.get("GOOGLE_CLOUD_PROJECT"):
         env["GOOGLE_CLOUD_PROJECT"] = env.get("GOOGLE_PROJECT_ID", "")
 
-    # Resolve Meltano CLI. Note: `python -m meltano` does not work (no meltano.__main__).
-    meltano_bin = project_root / ".venv" / "bin" / "meltano"
-    meltano_exe = str(meltano_bin) if meltano_bin.is_file() else (shutil.which("meltano") or "meltano")
+    meltano_exe = resolve_meltano_executable(project_root)
 
     # 1) Download CSV -> write staging/sp500_companies.jsonl
     staging_dir = Path(config.staging_dir)

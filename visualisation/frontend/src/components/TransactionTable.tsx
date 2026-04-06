@@ -195,7 +195,7 @@ export default function TransactionTable({ rowData, tickerClose = null }: Transa
             />
             <Th
               label="Value / Price"
-              info="Total filing notional from the mart: fact dollars, else est_acquire + est_dispose (shares×price from dbt)."
+              info="Filing notional from the mart: fact dollars or est_acquire + est_dispose; only P/S (Purchase/Sale) lines, so implied price matches open-market trades."
               sortKey="value"
               activeKey={sortKey}
               dir={sortDir}

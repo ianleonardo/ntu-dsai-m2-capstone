@@ -13,6 +13,8 @@ from typing import Optional
 from dotenv import dotenv_values
 from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataValue, asset
 
+from ..utils.meltano_cli import resolve_meltano_executable
+
 # File path: .../dataprocessing/dagster_orchestration/assets/sp500_stock_daily_integration.py
 # repo root is 3 levels up from this file (parents[3])
 project_root = Path(__file__).resolve().parents[3]
@@ -150,10 +152,13 @@ def bigquery_sp500_stock_daily_data(
     if "GOOGLE_CLOUD_PROJECT" not in env or not env.get("GOOGLE_CLOUD_PROJECT"):
         env["GOOGLE_CLOUD_PROJECT"] = env.get("GOOGLE_PROJECT_ID", "")
 
+    # Resolve Meltano CLI: PATH first (containers), then .venv (local uv).
+    meltano_exe = resolve_meltano_executable(project_root)
+
     try:
-        context.log.info("Installing Meltano plugins (best-effort).")
+        context.log.info(f"Installing Meltano plugins (best-effort). meltano={meltano_exe}")
         subprocess.run(
-            ["meltano", "install"],
+            [meltano_exe, "install"],
             cwd=str(meltano_dir),
             capture_output=True,
             text=True,
@@ -168,7 +173,7 @@ def bigquery_sp500_stock_daily_data(
         # Full refresh: tap-jsonl bookmarks by file mtime; without this, re-runs often skip the
         # file and load 0 rows while still exiting 0 — looks like "nothing in BigQuery".
         run_cmd = [
-            "meltano",
+            meltano_exe,
             "el",
             "tap-jsonl-sp500-stock-daily",
             "target-bigquery",

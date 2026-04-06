@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-**Insider Alpha** is a specialized analytics dashboard designed to transform complex, unstructured SEC Form 4 filings into actionable investment signals for S&P 500 companies. By leveraging the legally mandated transaction data of corporate insiders—who possess the most asymmetric information regarding their firm’s future—this solution provides a systematic, data-driven edge. For portfolio managers, Insider Alpha translates regulatory noise into a high-conviction investment decisions based on the proven alpha generation patterns of executive leadership.
+**Insider Alpha** is a specialized analytics dashboard designed to transform complex, unstructured SEC Form 3 and Form 4 filings into actionable investment signals for S&P 500 companies. By leveraging the legally mandated transaction data of corporate insiders—who possess the most asymmetric information regarding their firm’s future—this solution provides a systematic, data-driven edge. For portfolio managers, Insider Alpha translates regulatory noise into a high-conviction investment decisions based on the proven alpha generation patterns of executive leadership.
 
 ---
 

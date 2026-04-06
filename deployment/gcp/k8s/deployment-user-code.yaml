@@ -1,0 +1,50 @@
+# gRPC code location — runs pipeline assets/jobs when the webserver launches runs here.
+# Replace image: with your Artifact Registry path after `gcloud builds submit` or CI push.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster-user-code
+  namespace: dagster
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dagster-user-code
+  template:
+    metadata:
+      labels:
+        app: dagster-user-code
+    spec:
+      serviceAccountName: dagster-workloads
+      containers:
+        - name: user-code
+          image: REGION-docker.pkg.dev/PROJECT_ID/REPO/capstone-dagster:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/deployment/gcp/docker-entrypoint.sh"]
+          args:
+            - dagster
+            - api
+            - grpc
+            - -h
+            - "0.0.0.0"
+            - -p
+            - "4000"
+            - -m
+            - dataprocessing.dagster_orchestration.repository
+            - -a
+            - definitions
+          env:
+            - name: DAGSTER_HOME
+              value: /opt/dagster/dagster_home
+            - name: PYTHONPATH
+              value: /app
+            - name: SEC_FORM4_OUTPUT_DIR
+              value: /tmp/sec_form4_staging
+          envFrom:
+            - secretRef:
+                name: dagster-postgres
+                optional: true
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"

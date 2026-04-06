@@ -3413,8 +3413,12 @@ dependencies = [
     { name = "dagster-dbt", version = "0.28.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "dagster-webserver", version = "1.12.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "dagster-webserver", version = "1.12.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "dbt-bigquery", version = "1.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "dbt-bigquery", version = "1.11.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "google-api-core" },
     { name = "google-cloud-bigquery" },
+    { name = "meltano", version = "3.9.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "meltano", version = "4.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pandas" },
     { name = "python-dotenv", version = "1.2.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "python-dotenv", version = "1.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -3456,6 +3460,12 @@ dev = [
     { name = "pytest", version = "8.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pytest", version = "9.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
 ]
+gcp = [
+    { name = "dagster-gcp", version = "0.28.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "dagster-gcp", version = "0.28.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "dagster-postgres", version = "0.28.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "dagster-postgres", version = "0.28.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
 meltano = [
     { name = "meltano", version = "3.9.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "meltano", version = "4.1.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -3476,15 +3486,19 @@ requires-dist = [
     { name = "dagster-dbt", specifier = ">=0.28.1" },
     { name = "dagster-dbt", marker = "extra == 'dagster'", specifier = ">=0.23.0" },
     { name = "dagster-gcp", marker = "extra == 'dagster'", specifier = ">=0.28.0" },
+    { name = "dagster-gcp", marker = "extra == 'gcp'", specifier = ">=0.28.0,<0.30" },
     { name = "dagster-postgres", marker = "extra == 'dagster'", specifier = ">=0.28.0" },
+    { name = "dagster-postgres", marker = "extra == 'gcp'", specifier = ">=0.28.0,<0.30" },
     { name = "dagster-webserver", specifier = ">=1.12.0" },
     { name = "dagster-webserver", marker = "extra == 'dagster'", specifier = ">=1.12.0" },
+    { name = "dbt-bigquery", specifier = ">=1.10.2,<1.12" },
     { name = "dbt-bigquery", marker = "extra == 'dbt'", specifier = ">=1.7.0" },
     { name = "dbt-bigquery", marker = "extra == 'dbt-core'", specifier = ">=1.10.2" },
     { name = "dbt-core", marker = "extra == 'dbt'", specifier = ">=1.7.0" },
     { name = "flake8", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "google-api-core", specifier = ">=2.11.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.0.0" },
+    { name = "meltano", specifier = ">=3.0,<5" },
     { name = "meltano", marker = "extra == 'meltano'", specifier = ">=3.0,<5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.3.3" },
@@ -3495,7 +3509,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.30,<0.31" },
     { name = "yfinance", specifier = ">=1.2.0" },
 ]
-provides-extras = ["dev", "meltano", "dagster", "dbt", "dbt-core"]
+provides-extras = ["dev", "meltano", "dagster", "dbt", "dbt-core", "gcp"]
 
 [package.metadata.requires-dev]
 meltano = [{ name = "meltano", specifier = ">=3.0,<5" }]

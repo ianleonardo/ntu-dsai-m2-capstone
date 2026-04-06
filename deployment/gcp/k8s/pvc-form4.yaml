@@ -1,0 +1,12 @@
+# Optional: mount at path used by SEC_FORM4_OUTPUT_DIR=/mnt/form4_staging (see README).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: form4-staging
+  namespace: dagster
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
