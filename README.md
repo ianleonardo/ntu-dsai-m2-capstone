@@ -626,15 +626,6 @@ npm run dev
 - Advanced caching strategies
 - Multi-cloud deployment options
 
-### Contributing
-
-This project demonstrates modern data engineering best practices:
-
-- Infrastructure as Code approach
-- Comprehensive testing and documentation
-- Scalable architecture design
-- Basic logging and pipeline monitoring
-
 ### Production Live URL
 
 - Frontend: [https://insideralpha.theluwak.com/](https://insideralpha.theluwak.com/)
