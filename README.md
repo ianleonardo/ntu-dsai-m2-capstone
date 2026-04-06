@@ -413,36 +413,7 @@ sec_pipeline_direct_complete_job:
 - `sp500_stock_daily_pipeline_job`: Market data processing
 - `sec_dedupe_only_job`: Data deduplication maintenance
 
-#### 3. Automated Scheduling
-
-**Quarterly SEC Schedule**:
-
-```python
-quarterly_sec_schedule:
-  Trigger: Start of each quarter
-  Action: Full SEC data refresh
-  Dependencies: BigQuery availability
-```
-
-**Monthly Validation Schedule**:
-
-```python
-monthly_validation_schedule:
-  Trigger: 1st of each month
-  Action: Data quality and completeness checks
-  Notifications: Alert on failures
-```
-
-**Weekly Health Check**:
-
-```python
-weekly_health_check_schedule:
-  Trigger: Every Sunday
-  Action: Pipeline connectivity and performance checks
-  Monitoring: System health metrics
-```
-
-#### 4. Monitoring and Observability
+#### 3. Monitoring and Observability
 
 **Dagster UI Features**:
 
@@ -497,7 +468,7 @@ For detailed setup instructions, see the [Dashboard Setup Guide](docs/dashboard_
 
 #### Dashboard Features
 
-- **Real-time Insider Trading Analytics**: Interactive charts and filtering
+- **Real-time Insider Trading Analytics**: Interactive dashboard with filtering
 - **Company Search**: Advanced search across S&P 500 companies
 - **Insider Directory**: Searchable database of corporate insiders
 - **Transaction Analysis**: Detailed transaction history and trends
@@ -654,15 +625,6 @@ npm run dev
 - Streaming data processing
 - Advanced caching strategies
 - Multi-cloud deployment options
-
-### Contributing
-
-This project demonstrates modern data engineering best practices:
-
-- Infrastructure as Code approach
-- Comprehensive testing and documentation
-- Scalable architecture design
-- Basic logging and pipeline monitoring
 
 ### Production Live URL
 
